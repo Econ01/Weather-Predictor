@@ -313,3 +313,73 @@ def PlotLongTermTrend(df, show=True, save=True):
         plt.show()
     else:
         plt.close(fig) # Close the figure if not showing
+
+def EngineerFeatures(master_df):
+    # Creates the IS_RAIN target for presipication classification
+    # Adds cyclical date features for climate tracking
+    print("Engineering Features...")
+    
+    # Create a new binary target column `IS_RAIN`
+    # 1 if precipitation was > 0.1mm (RR > 1), 0 otherwise
+    master_df['IS_RAIN'] = (master_df['RR'] > 1).astype(int) 
+
+    # Create "Climate Trend" Features
+    day_of_year = master_df.index.dayofyear
+    master_df['DAY_SIN'] = np.sin(2 * np.pi * day_of_year / 365.25)
+    master_df['DAY_COS'] = np.cos(2 * np.pi * day_of_year / 365.25)
+    
+    # Define final feature and target columns
+    FEATURE_COLS = [
+        'TG', 'TN', 'TX', 'RR', 'PP', 'SS', 'HU', 
+        'FG', 'FX', 'CC', 'SD', 'QQ', 'DAY_SIN', 'DAY_COS'
+    ]
+    TARGET_COLS = ['TG', 'FG', 'IS_RAIN']
+    
+    # Get lists of columns that actually exist in the dataframe in case some files failed to load
+    final_features = [col for col in FEATURE_COLS if col in master_df.columns]
+    final_targets = [col for col in TARGET_COLS if col in master_df.columns]
+    
+    clean_df = master_df[final_features + final_targets]
+    
+    print("Complete")
+    return clean_df, final_features, final_targets
+
+def load_and_process_data(run_plots=True, save_plots=True, show_plots=False, save_csv=False):
+    # This function controls the behaviour of the dataMAnager module
+    
+    # Read and Merge the data
+    master_df = ReadAndMerge()
+    
+    # Clean the data
+    master_df_cleaned = CleanData(master_df.copy())
+    
+    if run_plots:
+        # Run all plots
+        PlotHeatmap(master_df_cleaned, show=show_plots, save=save_plots, plot_3d=True)
+        PlotHistograms(master_df_cleaned, show=show_plots, save=save_plots)
+        PlotLongTermTrend(master_df_cleaned, show=show_plots, save=save_plots)
+        PlotSeasonalBoxplot(master_df_cleaned, show=show_plots, save=save_plots)
+    
+    # Feature Engineering
+    clean_feature_df, features, targets = EngineerFeatures(master_df_cleaned)
+    
+    if save_csv:
+        clean_feature_df.to_csv('clean_data.csv')
+        print("\nSuccessfully saved final processed data to 'clean_data.csv'")
+    
+    print(f"\nTotal Features: {len(features)}")
+    print(f"Total Targets: {len(targets)}")
+    
+    print("\nData processing complete. First 5 rows of final data:")
+    print(clean_feature_df.head())
+    
+    return clean_feature_df, features, targets
+
+
+if __name__ == "__main__":
+    load_and_process_data(
+        run_plots=True, 
+        save_plots=True, 
+        show_plots=False,
+        save_csv=True
+    )
