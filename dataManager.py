@@ -126,11 +126,9 @@ def PlotHeatmap(df, show=True, save=True, plot_3d=True):
         # z is the height (correlation value)
         z_values = corr_matrix.values.flatten()
         
-        # --- (IMPROVEMENT) ---
         # Set the diagonal (where x==y) to 0 so it doesn't 
         # ruin the Z-axis scale.
         z_values[x_pos == y_pos] = 0
-        # --- (END IMPROVEMENT) ---
         
         # z_bottom is where the bars start (at the 0 plane)
         z_bottom = np.zeros_like(z_values)
