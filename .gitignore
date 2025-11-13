@@ -42,12 +42,6 @@ venv.bak/
 .ipynb_checkpoints
 *.ipynb_checkpoints/
 
-# Data files (if you want to exclude large datasets)
-# Uncomment these if you don't want to track data files
-# *.txt
-# *.csv
-# data/
-
 # Processed data output
 clean_data.csv
 
@@ -68,3 +62,5 @@ htmlcov/
 # OS files
 Thumbs.db
 .DS_Store
+
+*.pth
