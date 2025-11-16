@@ -559,38 +559,77 @@ n_samples_to_plot = min(365, len(predictions))
 fig, axes = plt.subplots(4, 1, figsize=(16, 12))
 
 # Plot 1: Day 1 forecast (most accurate)
-axes[0].plot(range(n_samples_to_plot), actuals[:n_samples_to_plot, 0, 0],
+day1_actual = actuals[:n_samples_to_plot, 0, 0]
+day1_pred = predictions[:n_samples_to_plot, 0, 0]
+day1_mae = mean_absolute_error(day1_actual, day1_pred)
+day1_mape = np.mean(np.abs((day1_actual - day1_pred) / day1_actual)) * 100
+
+axes[0].plot(range(n_samples_to_plot), day1_actual,
              'b-', label='Actual', linewidth=1.5, alpha=0.7)
-axes[0].plot(range(n_samples_to_plot), predictions[:n_samples_to_plot, 0, 0],
+axes[0].plot(range(n_samples_to_plot), day1_pred,
              'r-', label='Predicted', linewidth=1, alpha=0.7)
 axes[0].set_title('1-Day Ahead Temperature Forecast', fontsize=12, fontweight='bold')
 axes[0].set_ylabel('Temperature (0.1°C)', fontsize=10)
 axes[0].legend(loc='upper right')
 axes[0].grid(True, alpha=0.3)
 
+# Add error metrics text box
+textstr = f'MAE: {day1_mae:.2f} ({day1_mae/10:.2f}°C)\nMAPE: {day1_mape:.2f}%'
+props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
+axes[0].text(0.02, 0.98, textstr, transform=axes[0].transAxes, fontsize=9,
+             verticalalignment='top', bbox=props)
+
 # Plot 2: Day 3 forecast
-axes[1].plot(range(n_samples_to_plot), actuals[:n_samples_to_plot, 2, 0],
+day3_actual = actuals[:n_samples_to_plot, 2, 0]
+day3_pred = predictions[:n_samples_to_plot, 2, 0]
+day3_mae = mean_absolute_error(day3_actual, day3_pred)
+day3_mape = np.mean(np.abs((day3_actual - day3_pred) / day3_actual)) * 100
+
+axes[1].plot(range(n_samples_to_plot), day3_actual,
              'b-', label='Actual', linewidth=1.5, alpha=0.7)
-axes[1].plot(range(n_samples_to_plot), predictions[:n_samples_to_plot, 2, 0],
+axes[1].plot(range(n_samples_to_plot), day3_pred,
              'r-', label='Predicted', linewidth=1, alpha=0.7)
 axes[1].set_title('3-Day Ahead Temperature Forecast', fontsize=12, fontweight='bold')
 axes[1].set_ylabel('Temperature (0.1°C)', fontsize=10)
 axes[1].legend(loc='upper right')
 axes[1].grid(True, alpha=0.3)
 
+# Add error metrics text box
+textstr = f'MAE: {day3_mae:.2f} ({day3_mae/10:.2f}°C)\nMAPE: {day3_mape:.2f}%'
+props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
+axes[1].text(0.02, 0.98, textstr, transform=axes[1].transAxes, fontsize=9,
+             verticalalignment='top', bbox=props)
+
 # Plot 3: Day 7 forecast (most challenging)
-axes[2].plot(range(n_samples_to_plot), actuals[:n_samples_to_plot, 6, 0],
+day7_actual = actuals[:n_samples_to_plot, 6, 0]
+day7_pred = predictions[:n_samples_to_plot, 6, 0]
+day7_mae = mean_absolute_error(day7_actual, day7_pred)
+day7_mape = np.mean(np.abs((day7_actual - day7_pred) / day7_actual)) * 100
+
+axes[2].plot(range(n_samples_to_plot), day7_actual,
              'b-', label='Actual', linewidth=1.5, alpha=0.7)
-axes[2].plot(range(n_samples_to_plot), predictions[:n_samples_to_plot, 6, 0],
+axes[2].plot(range(n_samples_to_plot), day7_pred,
              'r-', label='Predicted', linewidth=1, alpha=0.7)
 axes[2].set_title('7-Day Ahead Temperature Forecast', fontsize=12, fontweight='bold')
 axes[2].set_ylabel('Temperature (0.1°C)', fontsize=10)
 axes[2].legend(loc='upper right')
 axes[2].grid(True, alpha=0.3)
 
+# Add error metrics text box
+textstr = f'MAE: {day7_mae:.2f} ({day7_mae/10:.2f}°C)\nMAPE: {day7_mape:.2f}%'
+props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
+axes[2].text(0.02, 0.98, textstr, transform=axes[2].transAxes, fontsize=9,
+             verticalalignment='top', bbox=props)
+
 # Plot 4: Residuals (errors) over time
 residuals_day1 = actuals[:n_samples_to_plot, 0, 0] - predictions[:n_samples_to_plot, 0, 0]
 residuals_day7 = actuals[:n_samples_to_plot, 6, 0] - predictions[:n_samples_to_plot, 6, 0]
+
+# Calculate residual statistics
+res1_mean = np.mean(residuals_day1)
+res1_std = np.std(residuals_day1)
+res7_mean = np.mean(residuals_day7)
+res7_std = np.std(residuals_day7)
 
 axes[3].plot(range(n_samples_to_plot), residuals_day1,
              'g-', label='Day 1 Error', linewidth=0.8, alpha=0.6)
@@ -602,6 +641,12 @@ axes[3].set_xlabel('Sample Index (days)', fontsize=10)
 axes[3].set_ylabel('Error (0.1°C)', fontsize=10)
 axes[3].legend(loc='upper right')
 axes[3].grid(True, alpha=0.3)
+
+# Add residual statistics text box
+textstr = f'Day 1: Mean={res1_mean:.2f}, Std={res1_std:.2f}\nDay 7: Mean={res7_mean:.2f}, Std={res7_std:.2f}'
+props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+axes[3].text(0.02, 0.98, textstr, transform=axes[3].transAxes, fontsize=9,
+             verticalalignment='top', bbox=props)
 
 plt.suptitle(f'Temperature Forecast Evaluation ({test_dates[0].strftime("%Y-%m-%d")} to {test_dates[n_samples_to_plot-1].strftime("%Y-%m-%d")})',
              fontsize=14, fontweight='bold', y=0.995)
