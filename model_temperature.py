@@ -31,10 +31,6 @@ import webbrowser
 import time
 import matplotlib.pyplot as plt
 
-print("="*80)
-print("PHASE 1: Temperature Prediction Model with Enhanced Features")
-print("="*80)
-
 # ============================================================================
 # DATA LOADING AND PREPROCESSING
 # ============================================================================
@@ -51,7 +47,7 @@ TARGET_COL = 'TG'
 
 # Configuration
 INPUT_DAYS = 30
-FORECAST_DAYS = 7  # Increased from 3
+FORECAST_DAYS = 7
 N_FEATURES = len(FEATURE_COLS)
 
 print(f"Input features: {N_FEATURES}")
@@ -158,9 +154,9 @@ val_df = clean_df_filtered[(clean_df_filtered.index > train_end_date) & (clean_d
 test_df = clean_df_filtered[clean_df_filtered.index > val_end_date]
 
 # Save to CSV
-train_df.to_csv('train_data.csv')
-val_df.to_csv('val_data.csv')
-test_df.to_csv('test_data.csv')
+train_df.to_csv('./modifiedData/train_data.csv')
+val_df.to_csv('./modifiedData/val_data.csv')
+test_df.to_csv('./modifiedData/test_data.csv')
 
 print(f"  Saved train_data.csv ({len(train_df)} rows, {len(train_df.columns)} columns)")
 print(f"  Saved val_data.csv ({len(val_df)} rows, {len(val_df.columns)} columns)")
@@ -383,7 +379,7 @@ print("\n[8/9] Setting up training...")
 
 # Loss and optimizer
 criterion = nn.MSELoss()
-LEARNING_RATE = 0.001  # Increased from 0.0001
+LEARNING_RATE = 0.001
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # Learning rate scheduler
@@ -403,26 +399,15 @@ print(f"  Loss function: MSELoss")
 print(f"  Optimizer: Adam")
 print(f"  Scheduler: ReduceLROnPlateau (factor=0.5, patience=5)")
 
-# Launch TensorBoard
-print("\nLaunching TensorBoard...")
-try:
-    subprocess.Popen(['tensorboard', '--logdir', 'logs/fit', '--port', '6006'])
-    time.sleep(3)
-    webbrowser.open('http://localhost:6006/')
-    print("  TensorBoard launched at http://localhost:6006/")
-except Exception as e:
-    print(f"  Could not auto-launch TensorBoard: {e}")
-    print("  Run manually: tensorboard --logdir logs/fit")
-
 # ============================================================================
 # TRAINING LOOP
 # ============================================================================
 
 print("\n[9/9] Training model...")
 
-N_EPOCHS = 100  # Increased from 50
-PATIENCE = 15  # Increased from 5
-MAX_GRAD_NORM = 1.0  # Gradient clipping
+N_EPOCHS = 100
+PATIENCE = 15
+MAX_GRAD_NORM = 1.0
 
 best_val_loss = float('inf')
 epochs_no_improve = 0
@@ -621,23 +606,7 @@ axes[3].grid(True, alpha=0.3)
 plt.suptitle(f'Temperature Forecast Evaluation ({test_dates[0].strftime("%Y-%m-%d")} to {test_dates[n_samples_to_plot-1].strftime("%Y-%m-%d")})',
              fontsize=14, fontweight='bold', y=0.995)
 plt.tight_layout()
-plt.savefig('temperature_forecast_evaluation.png', dpi=300, bbox_inches='tight')
-print(f"  Saved: temperature_forecast_evaluation.png")
+plt.savefig('./figures/temperature_forecast_evaluation.png', dpi=800, bbox_inches='tight')
+print(f"  Saved: ./figures/temperature_forecast_evaluation.png")
 
 plt.show()
-
-print("\n" + "="*80)
-print("PHASE 1 COMPLETE!")
-print("="*80)
-print(f"\nOutputs:")
-print(f"  - Model: best_model_temperature.pth")
-print(f"  - Training data: train_data.csv")
-print(f"  - Validation data: val_data.csv")
-print(f"  - Test data: test_data.csv")
-print(f"  - Visualization: temperature_forecast_evaluation.png")
-print(f"  - TensorBoard logs: {log_dir}")
-print(f"\nNext steps:")
-print(f"  1. Review metrics and visualization")
-print(f"  2. Analyze errors to identify improvement areas")
-print(f"  3. Consider hyperparameter tuning if needed")
-print(f"  4. Apply learnings to other target variables")
