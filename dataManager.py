@@ -446,7 +446,7 @@ def EngineerFeatures(master_df):
 
     # Define final feature and target columns
     # EXCLUDE PP and QQ (contaminated data - see data quality analysis)
-    # EXCLUDE TG from features (it's the target - prevent data leakage)
+    # EXCLUDE TG from features (slightly better without it)
     FEATURE_COLS = [
         'TN', 'TX', 'RR', 'SS', 'HU',
         'FG', 'FX', 'CC', 'SD', 'DAY_SIN', 'DAY_COS'

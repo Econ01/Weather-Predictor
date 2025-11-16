@@ -119,5 +119,75 @@
       "seed": 42,
       "notes": "BEST MODEL SO FAR. Removed TG from features to eliminate potential data leakage. Surprisingly IMPROVED results vs including TG. Still overfits at epoch 2 (train=0.032, val=0.307 at end). Beats baseline by 0.10 MAE."
     }
+  },
+  "cnn_1d_11feat": {
+    "metrics": {
+      "mae_overall": 23.69,
+      "rmse_overall": 30.82,
+      "r2_overall": 0.7484,
+      "mae_day1": 19.22,
+      "mae_day2": 22.1,
+      "mae_day3": 23.82,
+      "mae_day4": 24.5,
+      "mae_day5": 25.21,
+      "mae_day6": 25.51,
+      "mae_day7": 25.46,
+      "rmse_day1": 24.67,
+      "rmse_day7": 32.7,
+      "r2_day1": 0.8391,
+      "r2_day7": 0.7159
+    },
+    "config": {
+      "features": 11,
+      "feature_list": "TN, TX, RR, SS, HU, FG, FX, CC, SD, DAY_SIN, DAY_COS",
+      "excluded": "TG (target), PP, QQ",
+      "architecture": "1D CNN",
+      "conv_layers": "3 layers (64, 128, 128 channels)",
+      "kernel_sizes": "3, 3, 5",
+      "dense_layers": "256 -> 128 -> 7",
+      "dropout": 0.3,
+      "learning_rate": 0.001,
+      "batch_size": 32,
+      "epochs_trained": 29,
+      "best_epoch": 14,
+      "total_parameters": 241287,
+      "seed": 42,
+      "notes": "WORSE than GRU. Trained more stably (29 epochs, small train/val gap of 0.042) but CATASTROPHIC at 1-day forecasts (19.22 vs GRU 15.10, +27% worse). MaxPooling destroyed temporal precision. Slightly better at 7-day (+1.7%). Overall: 2.2% worse than GRU."
+    }
+  },
+  "cnn_with_tg_12feat": {
+    "metrics": {
+      "mae_overall": 24.01,
+      "rmse_overall": 30.79,
+      "r2_overall": 0.7489,
+      "mae_day1": 18.2,
+      "mae_day2": 22.07,
+      "mae_day3": 24.21,
+      "mae_day4": 25.14,
+      "mae_day5": 25.88,
+      "mae_day6": 26.21,
+      "mae_day7": 26.36,
+      "rmse_day1": 23.2,
+      "rmse_day7": 33.19,
+      "r2_day1": 0.8576,
+      "r2_day7": 0.7072
+    },
+    "config": {
+      "features": 12,
+      "feature_list": "TG, TN, TX, RR, SS, HU, FG, FX, CC, SD, DAY_SIN, DAY_COS",
+      "excluded": "PP, QQ",
+      "architecture": "1D CNN",
+      "conv_layers": "3 layers (64, 128, 128 channels)",
+      "kernel_sizes": "3, 3, 5",
+      "dense_layers": "256 -> 128 -> 7",
+      "dropout": 0.3,
+      "learning_rate": 0.001,
+      "batch_size": 32,
+      "epochs_trained": 22,
+      "best_epoch": 7,
+      "total_parameters": 241479,
+      "seed": 42,
+      "notes": "WORST OVERALL MODEL (24.01 MAE). Adding TG helped 1-day forecasts (19.22\u219218.20, +5% better) but hurt 7-day (25.46\u219226.36, +3.5% worse). Still 20.5% worse than GRU at 1-day forecasts. CNN architecture fundamentally unsuited for this task - maxpooling destroys temporal precision."
+    }
   }
 }
