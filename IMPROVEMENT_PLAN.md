@@ -1,7 +1,270 @@
 # Weather Predictor Improvement Plan
 
 **Created**: 2025-11-13
-**Status**: Initial Analysis Complete
+**Last Updated**: 2025-11-16
+**Status**: Revised Strategy - Single-Task Models First
+
+---
+
+## REVISED STRATEGY (2025-11-16)
+
+### Key Decision: Single-Task Models Before Multi-Task
+
+After analysis and discussion, we've decided to **pivot from multi-task learning to single-task models first**.
+
+**Rationale:**
+1. **Current multi-task model has completely failed** - outputting mean values indicates competing objectives hurt training
+2. **Targets are fundamentally different:**
+   - Temperature: Smooth, continuous, normally distributed
+   - Precipitation: Zero-inflated (51.6% zeros), heavily right-skewed, needs special handling
+   - Wind/Humidity: Different scales and characteristics
+3. **Loss balancing is complex** - MSE + BCE with different scales creates gradient competition
+4. **Debugging is harder** - Can't isolate which task is causing failures
+5. **Easier iteration** - Get one model working provides insights for others
+
+**New Approach:**
+- Build **3 separate specialized models** for each target
+- Start with **Temperature (TG)** as proof of concept
+- Once successful, apply learnings to other targets
+- Consider multi-task learning later with proper architecture (separate heads, weighted losses)
+
+---
+
+## DATA QUALITY ANALYSIS (2025-11-16)
+
+### Critical Issue: Forward Fill Contamination
+
+**Problem Discovered:**
+The `CleanData()` function in `dataManager.py` uses forward fill (`ffill()`) without limits, which propagates last valid values to fill ALL missing data, even multi-year gaps. This creates **fabricated data** that corrupts model training.
+
+### Contamination by Variable
+
+| Variable | Raw Missing | Fabricated Data | % Contaminated | Quality Status |
+|----------|-------------|-----------------|----------------|----------------|
+| **TG** (Mean Temp) | 62 | 0 | 0.00% | ✅ Excellent |
+| **TN** (Min Temp) | 62 | 0 | 0.00% | ✅ Excellent |
+| **TX** (Max Temp) | 62 | 0 | 0.00% | ✅ Excellent |
+| **RR** (Precipitation) | 1 | 1 | 0.00% | ✅ Excellent |
+| **SS** (Sunshine) | 92 | 0 | 0.00% | ✅ Excellent |
+| **HU** (Humidity) | 72 | 10 | 0.04% | ✅ Excellent |
+| **FG** (Wind Speed) | 78 | 78 | 0.31% | ✅ Excellent |
+| **FX** (Wind Gust) | 77 | 77 | 0.31% | ✅ Excellent |
+| **CC** (Cloud Cover) | 95 | 33 | 0.13% | ✅ Excellent |
+| **SD** (Snow Depth) | 10,563 | 823 | 2.38% | ⚠️ Acceptable |
+| **PP** (Pressure) | 2,796 | 2,796 | **11.24%** | ❌ **CONTAMINATED** |
+| **QQ** (Radiation) | 1,976 | 1,703 | **6.76%** | ❌ **CONTAMINATED** |
+
+### Sensor Failure Timeline
+
+**PP (Sea Level Pressure):**
+- 2010-2017: 100% valid data
+- 2018 Jan-Feb: 97% valid
+- **2018 March onwards: Sensor completely failed (0 valid readings)**
+- 2019-2025: 100% missing (filled by ffill with fake values)
+
+**QQ (Global Radiation):**
+- 2010-2019: 100% valid data
+- **2020 onwards: Severe degradation (91-92% missing)**
+- 2020-2024: Only ~31 valid days per year
+- Data exists but sensor unreliable
+
+**SD (Snow Depth):**
+- Generally good, but spotty in 2022-2024
+- 2025: Recovered to 100% valid
+- 2.38% contamination is acceptable
+
+### Decision: Exclude PP and QQ
+
+**Rationale:**
+1. **PP**: 11.24% of data is fabricated, entire test set (2024-2025) would be fake
+2. **QQ**: 6.76% fabricated, degraded severely after 2019
+3. **Alternative considered**: Use data only through 2017 (keeps PP clean)
+   - Rejected: Would lose 2018-2025 data, can't test on modern climate
+4. **12 remaining variables are high quality**: All <0.4% contamination (essentially pristine)
+
+### Data Quality Checks Performed
+
+**Humidity (HU) Investigation:**
+- User noted periodic peaks in histogram
+- Analysis confirmed: Integer measurement precision (normal for humidity sensors)
+- No bias toward multiples of 5/10 (ratio: 0.95)
+- Natural bell curve distribution centered at 75-80%
+- **Conclusion: HU data is valid** ✅
+
+---
+
+## NEW PHASE 0: Single-Task Temperature Prediction Model
+
+**Priority**: HIGHEST - Start Here
+**File**: Create `model_temperature.py` (keep `model.py` as reference)
+**Goal**: Build a working temperature forecaster as baseline
+
+### Architecture Specifications
+
+**Input Configuration:**
+- **Window size**: 30 days (INPUT_DAYS = 30)
+- **Forecast horizon**: 7 days (FORECAST_DAYS = 7) ⬆️ *Increased from 3*
+- **Input features** (12 variables) ⬆️ *Updated based on data quality analysis*:
+  ```python
+  FEATURE_COLS = [
+      'TG',  # Include mean temp - provides direct autocorrelation signal
+      'TN', 'TX',  # Min/Max temps - capture temperature range patterns
+      'RR',  # Precipitation affects temperature
+      'SS',  # Sunshine - direct heating
+      'HU',  # Humidity - affects heat retention
+      'FG', 'FX',  # Wind - brings warm/cold air masses
+      'CC',  # Cloud cover - traps heat
+      'SD',  # Snow depth - affects albedo
+      'DAY_SIN', 'DAY_COS'  # Seasonality encoding
+      # PP (Pressure) - EXCLUDED: 11.24% fabricated data, sensor died 2018
+      # QQ (Radiation) - EXCLUDED: 6.76% fabricated data, degraded 2020+
+  ]
+  ```
+- **Target**: TG only (1 variable, 7 timesteps)
+
+**Rationale for including TG in features:**
+- No data leakage (days 1-30 → predict days 31-37)
+- Temperature autocorrelation is valuable signal
+- Standard practice in time series forecasting
+- Forces model to learn trends, not just persistence
+
+**Why PP and QQ are excluded:**
+- See "DATA QUALITY ANALYSIS" section above
+- Both variables heavily contaminated by forward-fill of missing sensor data
+- Excluding them allows us to use 2018-2025 data (including test set 2024-2025)
+- 12 remaining features are all high-quality (<0.4% contamination)
+
+**Model Architecture:**
+```python
+Input: (batch, 30 days, 12 features)  # Reduced from 14
+  ↓
+Encoder: GRU/LSTM (2-3 layers, 256-512 hidden)
+  ↓
+Context Vector: (num_layers, batch, hidden_dim)
+  ↓
+Decoder: Autoregressive GRU/LSTM
+  ↓
+Output Layer: Linear(hidden_dim, 1)
+  ↓
+Output: (batch, 7 days, 1 target)
+```
+
+### Data Split Strategy
+
+**OLD Split (Percentage-based):**
+- Train: 80% (1957-2004, ~47 years)
+- Val: 10% (2005-2011, ~7 years)
+- Test: 10% (2012-2025, ~13 years)
+
+**Problems:**
+- Missing recent climate trends in training
+- Validation set unnecessarily large
+- Training on old climate patterns
+
+**NEW Split (Year-based):** ⬆️ *Revised*
+- **Train: 1957-2022** (~65 years, ~95% of data)
+  - 23,741 days ≈ 23,000+ samples
+- **Validation: 2023** (~1 year, ~2.5%)
+  - 365 days ≈ 335 samples (enough for early stopping)
+- **Test: 2024-2025** (~1-2 years, ~2.5%)
+  - 730 days ≈ 700 samples (robust evaluation)
+
+**Benefits:**
+- ✅ Model learns from recent climate patterns (2005-2022)
+- ✅ Captures warming trends and modern weather regimes
+- ✅ More training data (18 extra years)
+- ✅ Still plenty of validation samples
+- ✅ Realistic test: "Can we forecast 2024-2025?"
+- ✅ Strict temporal separation (no future data leakage)
+
+### Visualization Improvements
+
+**OLD Visualization:**
+```python
+idx = 100  # Single random sample
+pred_3_day = y_pred_unscaled[idx]  # Just 3 days
+actual_3_day = y_test_unscaled[idx]
+# Plot 3 days only
+```
+
+**Problems:**
+- Only shows one 3-day snapshot
+- Can't see long-term tracking
+- Doesn't reveal seasonal patterns or trend following
+
+**NEW Visualization:** ⬆️ *Enhanced*
+```python
+# Plot entire year of predictions (365 days)
+# Show continuous actual vs predicted
+# Visualize:
+# - Day 1, 3, 7 ahead predictions separately
+# - Rolling forecast performance
+# - Seasonal tracking ability
+# - Trend following
+# - Error distribution over time
+```
+
+**Output plots:**
+1. **Year-long comparison**: 365 days actual vs predicted
+2. **Forecast horizon breakdown**: Separate plots for 1-day, 3-day, 7-day ahead
+3. **Error analysis**: Residuals over time, seasonal error patterns
+4. **Metrics dashboard**: MAE, RMSE, R² for each forecast day
+
+### Success Metrics for Temperature Model
+
+**Minimum Viable Performance:**
+- MAE < 30 (3.0°C) for 1-day ahead
+- MAE < 50 (5.0°C) for 7-day ahead
+- R² > 0.5 overall
+- Captures seasonal trends visually
+
+**Target Performance:**
+- MAE < 20 (2.0°C) for 1-day ahead
+- MAE < 40 (4.0°C) for 7-day ahead
+- R² > 0.7 overall
+- Follows temperature fluctuations (not just trends)
+
+**Stretch Goals:**
+- MAE < 15 (1.5°C) for 1-day ahead
+- MAE < 30 (3.0°C) for 7-day ahead
+- R² > 0.8 overall
+
+### Implementation Checklist
+
+- [ ] **Task 0.1**: Create `model_temperature.py` (copy from model.py as template)
+- [ ] **Task 0.2**: Update data loading to use **12 features** (exclude PP, QQ) → 1 target (TG)
+- [ ] **Task 0.3**: Change FORECAST_DAYS from 3 to 7
+- [ ] **Task 0.4**: Implement year-based data split (1957-2022 / 2023 / 2024-2025)
+- [ ] **Task 0.5**: Update scaling (only 1 target, simpler than multi-task)
+- [ ] **Task 0.6**: Implement autoregressive decoder (Issue #2 solution)
+- [ ] **Task 0.7**: Add attention mechanism (Issue #3 solution)
+- [ ] **Task 0.8**: Add gradient clipping (Issue #7 solution)
+- [ ] **Task 0.9**: Adjust hyperparameters (Issue #5 - more epochs, higher LR)
+- [ ] **Task 0.10**: Implement year-long visualization (365-day plot)
+- [ ] **Task 0.11**: Add comprehensive metrics (MAE, RMSE, R² per forecast day)
+- [ ] **Task 0.12**: Train and evaluate model
+- [ ] **Task 0.13**: Document results and learnings
+
+**After Phase 0 Success:**
+- Apply architecture to precipitation model (with special handling for zero-inflation)
+- Apply architecture to humidity/wind models
+- Consider multi-task learning with task-specific heads (Issue #12)
+
+### Future Data Pipeline Improvements
+
+**Note**: For Phase 0, we're excluding PP and QQ entirely. Future improvements to `dataManager.py`:
+
+- [ ] **Fix CleanData()**: Implement limited forward fill (max 7 days) instead of unlimited
+- [ ] **Add data validation**: Flag/report variables with >5% missing data
+- [ ] **Smart imputation**: Use interpolation for small gaps, drop rows for large gaps
+- [ ] **Quality metrics**: Track and report data contamination percentages
+- [ ] **Optional**: Add ability to load data up to specific cutoff date (e.g., 2017-12-31 for clean PP/QQ)
+
+---
+
+## ORIGINAL PLAN (Multi-Task Approach)
+
+**Note**: The sections below describe the original multi-task approach. We're keeping this for reference, but **Phase 0 takes priority**. Original issues still apply but will be addressed in single-task context first.
 
 ---
 
@@ -665,5 +928,33 @@ FEATURE_COLS = [
 
 ---
 
-**Last Updated**: 2025-11-13
-**Next Review**: After Phase 1 completion
+## SUMMARY: Current Plan of Action (2025-11-16)
+
+### What We Discovered:
+1. **Multi-task model failed completely** - outputting mean values
+2. **Data quality issues** - PP and QQ heavily contaminated by unlimited forward fill
+3. **Forward fill bug** - dataManager.py propagates values for years, creating fake data
+
+### What We Decided:
+1. **Single-task approach** - Build separate models for each target variable
+2. **Start with temperature (TG)** - Proof of concept with 7-day forecasts
+3. **Exclude PP & QQ** - Use 12 clean variables, enables testing on 2024-2025 data
+4. **Year-based splits** - Train 1957-2022, Val 2023, Test 2024-2025
+
+### What We're Building:
+- **File**: `model_temperature.py` (keep `model.py` untouched as reference)
+- **Input**: 30-day windows of 12 weather variables
+- **Output**: 7-day temperature forecasts
+- **Architecture**: Encoder-Decoder with attention and autoregressive decoder
+- **Evaluation**: Year-long predictions (365 days), comprehensive metrics
+
+### Next Steps:
+1. Implement Phase 0 (13 tasks in checklist above)
+2. Train and evaluate temperature model
+3. Document learnings
+4. Apply to other targets (precipitation, humidity, wind)
+
+---
+
+**Last Updated**: 2025-11-16
+**Next Review**: After Phase 0 completion
