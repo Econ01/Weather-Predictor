@@ -85,7 +85,7 @@ def PlotHeatmap(df, show=True, save=True, plot_3d=True):
     # Calculate the correlation matrix
     corr_matrix = df[['TG', 'TN', 'TX', 'RR', 'PP', 'SS', 'HU', 'FG', 'FX', 'CC', 'SD', 'QQ']].corr()
 
-    # --- 2D Plot ---
+    # 2D Plot
     fig_2d, ax_2d = plt.subplots(figsize=(12, 10))
     sns.heatmap(
         corr_matrix, 
@@ -195,7 +195,23 @@ def PlotHistograms(df, show=True, save=True):
         'QQ': 'Global Radiation (QQ) [W/m²]',
         'IS_RAIN': 'Precipitation Indicator (IS_RAIN) [0/1]',
         'DAY_SIN': 'Day of Year Sin (DAY_SIN) [-1 to 1]',
-        'DAY_COS': 'Day of Year Cos (DAY_COS) [-1 to 1]'
+        'DAY_COS': 'Day of Year Cos (DAY_COS) [-1 to 1]',
+        # Lagged features
+        'TG_LAG1': 'TG 1-Day Lag [0.1°C]',
+        'TG_LAG7': 'TG 7-Day Lag [0.1°C]',
+        'TN_LAG1': 'TN 1-Day Lag [0.1°C]',
+        'TN_LAG7': 'TN 7-Day Lag [0.1°C]',
+        'TX_LAG1': 'TX 1-Day Lag [0.1°C]',
+        'TX_LAG7': 'TX 7-Day Lag [0.1°C]',
+        'RR_LAG1': 'RR 1-Day Lag [0.1mm]',
+        'RR_LAG7': 'RR 7-Day Lag [0.1mm]',
+        'HU_LAG1': 'HU 1-Day Lag [%]',
+        'HU_LAG7': 'HU 7-Day Lag [%]',
+        'FG_LAG1': 'FG 1-Day Lag [0.1m/s]',
+        'FG_LAG7': 'FG 7-Day Lag [0.1m/s]',
+        # Rolling statistics
+        'TG_ROLLING_7_MEAN': 'TG 7-Day Rolling Mean [0.1°C]',
+        'TG_ROLLING_7_STD': 'TG 7-Day Rolling Std [0.1°C]'
     }
 
     # Get all numeric columns from the dataframe
@@ -261,7 +277,23 @@ def PlotTimeSeries(df, show=True, save=True):
         'QQ': 'Global Radiation (QQ) [W/m²]',
         'IS_RAIN': 'Precipitation Indicator (IS_RAIN) [0/1]',
         'DAY_SIN': 'Day of Year Sin (DAY_SIN) [-1 to 1]',
-        'DAY_COS': 'Day of Year Cos (DAY_COS) [-1 to 1]'
+        'DAY_COS': 'Day of Year Cos (DAY_COS) [-1 to 1]',
+        # Lagged features
+        'TG_LAG1': 'TG 1-Day Lag [0.1°C]',
+        'TG_LAG7': 'TG 7-Day Lag [0.1°C]',
+        'TN_LAG1': 'TN 1-Day Lag [0.1°C]',
+        'TN_LAG7': 'TN 7-Day Lag [0.1°C]',
+        'TX_LAG1': 'TX 1-Day Lag [0.1°C]',
+        'TX_LAG7': 'TX 7-Day Lag [0.1°C]',
+        'RR_LAG1': 'RR 1-Day Lag [0.1mm]',
+        'RR_LAG7': 'RR 7-Day Lag [0.1mm]',
+        'HU_LAG1': 'HU 1-Day Lag [%]',
+        'HU_LAG7': 'HU 7-Day Lag [%]',
+        'FG_LAG1': 'FG 1-Day Lag [0.1m/s]',
+        'FG_LAG7': 'FG 7-Day Lag [0.1m/s]',
+        # Rolling statistics
+        'TG_ROLLING_7_MEAN': 'TG 7-Day Rolling Mean [0.1°C]',
+        'TG_ROLLING_7_STD': 'TG 7-Day Rolling Std [0.1°C]'
     }
 
     # Get all numeric columns from the dataframe
@@ -433,22 +465,49 @@ def PlotLongTermTrend(df, show=True, save=True):
 def EngineerFeatures(master_df):
     # Creates the IS_RAIN target for presipication classification
     # Adds cyclical date features for climate tracking
+    # Adds lagged features and rolling statistics for improved temporal modeling
     print("Engineering Features...")
-    
+
     # Create a new binary target column `IS_RAIN`
     # 1 if precipitation was > 0.1mm (RR > 1), 0 otherwise
-    master_df['IS_RAIN'] = (master_df['RR'] > 1).astype(int) 
+    master_df['IS_RAIN'] = (master_df['RR'] > 1).astype(int)
 
     # Create "Climate Trend" Features
     day_of_year = master_df.index.dayofyear
     master_df['DAY_SIN'] = np.sin(2 * np.pi * day_of_year / 365.25)
     master_df['DAY_COS'] = np.cos(2 * np.pi * day_of_year / 365.25)
-    
+
+    # Add LAG1 (1-day lag) and LAG7 (7-day lag) for key weather variables
+    print("  Adding lagged features...")
+    lag_variables = ['TG', 'TN', 'TX', 'RR', 'HU', 'FG']
+    for var in lag_variables:
+        if var in master_df.columns:
+            master_df[f'{var}_LAG1'] = master_df[var].shift(1)
+            master_df[f'{var}_LAG7'] = master_df[var].shift(7)
+
+    # Add 7-day rolling mean and standard deviation for temperature
+    print("  Adding rolling statistics...")
+    if 'TG' in master_df.columns:
+        master_df['TG_ROLLING_7_MEAN'] = master_df['TG'].rolling(window=7, min_periods=1).mean()
+        master_df['TG_ROLLING_7_STD'] = master_df['TG'].rolling(window=7, min_periods=1).std()
+
     # Define final feature and target columns
-    FEATURE_COLS = [
-        'TG', 'TN', 'TX', 'RR', 'PP', 'SS', 'HU',
-        'FG', 'FX', 'CC', 'SD', 'QQ', 'DAY_SIN', 'DAY_COS'
+    # EXCLUDE PP and QQ (contaminated data - see data quality analysis)
+    BASE_FEATURES = [
+        'TG', 'TN', 'TX', 'RR', 'SS', 'HU',
+        'FG', 'FX', 'CC', 'SD', 'DAY_SIN', 'DAY_COS'
     ]
+
+    # Add lagged feature names
+    LAG_FEATURES = []
+    for var in lag_variables:
+        LAG_FEATURES.extend([f'{var}_LAG1', f'{var}_LAG7'])
+
+    # Add rolling statistic names
+    ROLLING_FEATURES = ['TG_ROLLING_7_MEAN', 'TG_ROLLING_7_STD']
+
+    # Combine all features
+    FEATURE_COLS = BASE_FEATURES + LAG_FEATURES + ROLLING_FEATURES
     TARGET_COLS = ['TG', 'FG', 'IS_RAIN']
 
     # Get lists of columns that actually exist in the dataframe in case some files failed to load
@@ -461,7 +520,14 @@ def EngineerFeatures(master_df):
 
     clean_df = master_df[all_columns]
 
-    print("Complete")
+    # Drop rows with NaN values created by lag/rolling operations
+    print("  Dropping NaN rows created by lag/rolling operations...")
+    rows_before = len(clean_df)
+    clean_df = clean_df.dropna()
+    rows_after = len(clean_df)
+    print(f"  Dropped {rows_before - rows_after} rows with NaN values")
+
+    print(f"Complete - Total features: {len(final_features)}")
     return clean_df, final_features, final_targets
 
 def load_and_process_data(run_plots=True, save_plots=True, show_plots=False, save_csv=False):
@@ -485,7 +551,7 @@ def load_and_process_data(run_plots=True, save_plots=True, show_plots=False, sav
         PlotSeasonalBoxplot(clean_feature_df, show=show_plots, save=save_plots)
 
     if save_csv:
-        clean_feature_df.to_csv('clean_data.csv')
+        clean_feature_df.to_csv('./modifiedData/clean_data.csv')
         print("\nSuccessfully saved final processed data to 'clean_data.csv'")
 
     print(f"\nTotal Features: {len(features)}")
