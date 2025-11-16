@@ -171,7 +171,7 @@ def PlotHeatmap(df, show=True, save=True, plot_3d=True):
             plt.close(fig_3d)
 
 def PlotHistograms(df, show=True, save=True):
-    # Generates and saves histograms for key variables
+    # Generates and saves histograms for all available variables
     print("Generating histograms...")
     try:
         import matplotlib.pyplot as plt
@@ -179,31 +179,149 @@ def PlotHistograms(df, show=True, save=True):
         print("ERROR: `matplotlib` is required for this step.")
         return
 
-    # We select a few key variables to plot
-    hist_vars = ['TG', 'RR', 'HU', 'FG', 'PP']
+    # Create a mapping of variable codes to descriptive names with units
+    variable_names = {
+        'TG': 'Mean Temperature (TG) [0.1°C]',
+        'TN': 'Min Temperature (TN) [0.1°C]',
+        'TX': 'Max Temperature (TX) [0.1°C]',
+        'RR': 'Precipitation (RR) [0.1mm]',
+        'PP': 'Sea Level Pressure (PP) [0.1hPa]',
+        'SS': 'Sunshine Duration (SS) [0.1h]',
+        'HU': 'Humidity (HU) [%]',
+        'FG': 'Wind Speed (FG) [0.1m/s]',
+        'FX': 'Wind Gust (FX) [0.1m/s]',
+        'CC': 'Cloud Cover (CC) [oktas]',
+        'SD': 'Snow Depth (SD) [cm]',
+        'QQ': 'Global Radiation (QQ) [W/m²]',
+        'IS_RAIN': 'Precipitation Indicator (IS_RAIN) [0/1]',
+        'DAY_SIN': 'Day of Year Sin (DAY_SIN) [-1 to 1]',
+        'DAY_COS': 'Day of Year Cos (DAY_COS) [-1 to 1]'
+    }
 
-    # Ensure we only plot columns that exist
-    hist_vars_exist = [var for var in hist_vars if var in df.columns]
-    
-    if not hist_vars_exist:
-        print("  Skipping histograms: No key variables found.")
+    # Get all numeric columns from the dataframe
+    numeric_df = df.select_dtypes(include=[np.number])
+
+    if numeric_df.empty:
+        print("  Skipping histograms: No numeric variables found.")
         return
-        
+
+    # Calculate number of variables to plot
+    n_vars = len(numeric_df.columns)
+
+    # Calculate appropriate grid layout (aim for roughly square layout)
+    n_cols = int(np.ceil(np.sqrt(n_vars)))
+    n_rows = int(np.ceil(n_vars / n_cols))
+
+    # Adjust figure size based on number of subplots
+    fig_width = max(15, n_cols * 4)
+    fig_height = max(10, n_rows * 3)
+
+    # Create a temporary dataframe with renamed columns for better labels
+    df_renamed = numeric_df.rename(columns=variable_names)
+
     # Configure the figure
-    axes = df[hist_vars_exist].hist(bins=50, figsize=(15, 10))
+    axes = df_renamed.hist(bins=50, figsize=(fig_width, fig_height), layout=(n_rows, n_cols))
     fig = axes.flat[0].get_figure()
-    
-    fig.suptitle('Histograms (Distributions) of Key Variables')
-    fig.tight_layout(rect=[0, 0.03, 1, 0.95])
-    
+
+    fig.suptitle(f'Histograms (Distributions) of All Variables ({n_vars} variables)', fontsize=16)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
+
     if save:
         fig.savefig('./figures/variable_histograms.png', dpi=800)
-        print("Histograms saved to './figures/variable_histograms.png'")
-    
+        print(f"Histograms saved to './figures/variable_histograms.png' ({n_vars} variables)")
+
     if show:
         plt.show()
     else:
         plt.close(fig) # Close the figure if not showing
+
+
+def PlotTimeSeries(df, show=True, save=True):
+    # Generates and saves time series plots for all available variables
+    print("Generating time series plots...")
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError:
+        print("ERROR: `matplotlib` is required for this step.")
+        return
+
+    # Create a mapping of variable codes to descriptive names with units
+    variable_names = {
+        'TG': 'Mean Temperature (TG) [0.1°C]',
+        'TN': 'Min Temperature (TN) [0.1°C]',
+        'TX': 'Max Temperature (TX) [0.1°C]',
+        'RR': 'Precipitation (RR) [0.1mm]',
+        'PP': 'Sea Level Pressure (PP) [0.1hPa]',
+        'SS': 'Sunshine Duration (SS) [0.1h]',
+        'HU': 'Humidity (HU) [%]',
+        'FG': 'Wind Speed (FG) [0.1m/s]',
+        'FX': 'Wind Gust (FX) [0.1m/s]',
+        'CC': 'Cloud Cover (CC) [oktas]',
+        'SD': 'Snow Depth (SD) [cm]',
+        'QQ': 'Global Radiation (QQ) [W/m²]',
+        'IS_RAIN': 'Precipitation Indicator (IS_RAIN) [0/1]',
+        'DAY_SIN': 'Day of Year Sin (DAY_SIN) [-1 to 1]',
+        'DAY_COS': 'Day of Year Cos (DAY_COS) [-1 to 1]'
+    }
+
+    # Get all numeric columns from the dataframe
+    numeric_df = df.select_dtypes(include=[np.number])
+
+    if numeric_df.empty:
+        print("  Skipping time series plots: No numeric variables found.")
+        return
+
+    # Calculate number of variables to plot
+    n_vars = len(numeric_df.columns)
+
+    # Calculate appropriate grid layout (aim for roughly square layout)
+    n_cols = int(np.ceil(np.sqrt(n_vars)))
+    n_rows = int(np.ceil(n_vars / n_cols))
+
+    # Adjust figure size based on number of subplots
+    fig_width = max(18, n_cols * 5)
+    fig_height = max(12, n_rows * 3)
+
+    # Create figure and subplots
+    fig, axes = plt.subplots(n_rows, n_cols, figsize=(fig_width, fig_height))
+
+    # Flatten axes array for easier iteration
+    if n_rows * n_cols == 1:
+        axes = [axes]
+    else:
+        axes = axes.flatten()
+
+    # Plot each variable
+    for idx, col in enumerate(numeric_df.columns):
+        ax = axes[idx]
+        ax.plot(numeric_df.index, numeric_df[col], linewidth=0.5, alpha=0.7)
+
+        # Use descriptive name with units if available
+        title = variable_names.get(col, col)
+        ax.set_title(title, fontsize=10)
+        ax.set_xlabel('Date', fontsize=8)
+        ax.set_ylabel('Value', fontsize=8)
+        ax.tick_params(axis='both', which='major', labelsize=7)
+        ax.grid(True, alpha=0.3)
+
+        # Rotate x-axis labels for better readability
+        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right')
+
+    # Hide unused subplots
+    for idx in range(n_vars, len(axes)):
+        axes[idx].set_visible(False)
+
+    fig.suptitle(f'Time Series of All Variables ({n_vars} variables)', fontsize=16)
+    fig.tight_layout(rect=[0, 0.03, 1, 0.97])
+
+    if save:
+        fig.savefig('./figures/time_series_all_variables.png', dpi=800)
+        print(f"Time series plot saved to './figures/time_series_all_variables.png' ({n_vars} variables)")
+
+    if show:
+        plt.show()
+    else:
+        plt.close(fig)
 
 
 def PlotSeasonalBoxplot(df, show=True, save=True):
@@ -328,49 +446,54 @@ def EngineerFeatures(master_df):
     
     # Define final feature and target columns
     FEATURE_COLS = [
-        'TG', 'TN', 'TX', 'RR', 'PP', 'SS', 'HU', 
+        'TG', 'TN', 'TX', 'RR', 'PP', 'SS', 'HU',
         'FG', 'FX', 'CC', 'SD', 'QQ', 'DAY_SIN', 'DAY_COS'
     ]
     TARGET_COLS = ['TG', 'FG', 'IS_RAIN']
-    
+
     # Get lists of columns that actually exist in the dataframe in case some files failed to load
     final_features = [col for col in FEATURE_COLS if col in master_df.columns]
     final_targets = [col for col in TARGET_COLS if col in master_df.columns]
-    
-    clean_df = master_df[final_features + final_targets]
-    
+
+    # Combine features and targets, removing duplicates while preserving order
+    # Use dict.fromkeys() to remove duplicates while maintaining order
+    all_columns = list(dict.fromkeys(final_features + final_targets))
+
+    clean_df = master_df[all_columns]
+
     print("Complete")
     return clean_df, final_features, final_targets
 
 def load_and_process_data(run_plots=True, save_plots=True, show_plots=False, save_csv=False):
     # This function controls the behaviour of the dataMAnager module
-    
+
     # Read and Merge the data
     master_df = ReadAndMerge()
-    
+
     # Clean the data
     master_df_cleaned = CleanData(master_df.copy())
-    
-    if run_plots:
-        # Run all plots
-        PlotHeatmap(master_df_cleaned, show=show_plots, save=save_plots, plot_3d=True)
-        PlotHistograms(master_df_cleaned, show=show_plots, save=save_plots)
-        PlotLongTermTrend(master_df_cleaned, show=show_plots, save=save_plots)
-        PlotSeasonalBoxplot(master_df_cleaned, show=show_plots, save=save_plots)
-    
+
     # Feature Engineering
     clean_feature_df, features, targets = EngineerFeatures(master_df_cleaned)
-    
+
+    if run_plots:
+        # Run all plots on the final engineered data
+        PlotHeatmap(clean_feature_df, show=show_plots, save=save_plots, plot_3d=True)
+        PlotHistograms(clean_feature_df, show=show_plots, save=save_plots)
+        PlotTimeSeries(clean_feature_df, show=show_plots, save=save_plots)
+        PlotLongTermTrend(clean_feature_df, show=show_plots, save=save_plots)
+        PlotSeasonalBoxplot(clean_feature_df, show=show_plots, save=save_plots)
+
     if save_csv:
         clean_feature_df.to_csv('clean_data.csv')
         print("\nSuccessfully saved final processed data to 'clean_data.csv'")
-    
+
     print(f"\nTotal Features: {len(features)}")
     print(f"Total Targets: {len(targets)}")
-    
+
     print("\nData processing complete. First 5 rows of final data:")
     print(clean_feature_df.head())
-    
+
     return clean_feature_df, features, targets
 
 
@@ -378,6 +501,6 @@ if __name__ == "__main__":
     load_and_process_data(
         run_plots=True, 
         save_plots=True, 
-        show_plots=False,
+        show_plots=True,
         save_csv=True
     )
