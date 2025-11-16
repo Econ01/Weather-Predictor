@@ -86,5 +86,38 @@
       "seed": 42,
       "notes": "Standard architecture with reproducible seed. Nearly identical to baseline. Severe overfitting - best at epoch 2, then diverges (train=0.030, val=0.308 at epoch 17)."
     }
+  },
+  "gru_no_tg_11feat": {
+    "metrics": {
+      "mae_overall": 23.19,
+      "rmse_overall": 30.32,
+      "r2_overall": 0.7564,
+      "mae_day1": 15.1,
+      "mae_day2": 21.2,
+      "mae_day3": 23.88,
+      "mae_day4": 24.91,
+      "mae_day5": 25.55,
+      "mae_day6": 25.83,
+      "mae_day7": 25.9,
+      "rmse_day1": 19.77,
+      "rmse_day7": 33.15,
+      "r2_day1": 0.8966,
+      "r2_day7": 0.708
+    },
+    "config": {
+      "features": 11,
+      "feature_list": "TN, TX, RR, SS, HU, FG, FX, CC, SD, DAY_SIN, DAY_COS",
+      "excluded": "TG (target), PP, QQ",
+      "hidden_dim": 256,
+      "num_layers": 2,
+      "architecture": "GRU with attention",
+      "learning_rate": 0.001,
+      "batch_size": 32,
+      "epochs_trained": 17,
+      "best_epoch": 2,
+      "total_parameters": 1523457,
+      "seed": 42,
+      "notes": "BEST MODEL SO FAR. Removed TG from features to eliminate potential data leakage. Surprisingly IMPROVED results vs including TG. Still overfits at epoch 2 (train=0.032, val=0.307 at end). Beats baseline by 0.10 MAE."
+    }
   }
 }
