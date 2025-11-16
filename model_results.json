@@ -24,5 +24,67 @@
       "batch_size": 32,
       "epochs": 18
     }
+  },
+  "simplified_gru_128h_1l": {
+    "metrics": {
+      "mae_overall": 23.68,
+      "rmse_overall": 30.99,
+      "r2_overall": 0.7456,
+      "mae_day1": 14.67,
+      "mae_day2": 21.22,
+      "mae_day3": 24.02,
+      "mae_day4": 25.46,
+      "mae_day5": 26.2,
+      "mae_day6": 26.91,
+      "mae_day7": 27.24,
+      "rmse_day1": 19.52,
+      "rmse_day7": 34.36,
+      "r2_day1": 0.8992,
+      "r2_day7": 0.6863
+    },
+    "config": {
+      "features": 12,
+      "hidden_dim": 128,
+      "num_layers": 1,
+      "architecture": "GRU with attention (simplified)",
+      "learning_rate": 0.001,
+      "batch_size": 32,
+      "epochs_trained": 21,
+      "best_epoch": 6,
+      "total_parameters": 187137,
+      "seed": 42,
+      "notes": "Simplified architecture to reduce overfitting. Trained longer (21 epochs) but still overfits after epoch 6."
+    }
+  },
+  "standard_gru_256h_2l_seed42": {
+    "metrics": {
+      "mae_overall": 23.35,
+      "rmse_overall": 30.96,
+      "r2_overall": 0.746,
+      "mae_day1": 15.03,
+      "mae_day2": 20.71,
+      "mae_day3": 23.51,
+      "mae_day4": 25.07,
+      "mae_day5": 26.0,
+      "mae_day6": 26.49,
+      "mae_day7": 26.68,
+      "rmse_day1": 20.07,
+      "rmse_day7": 34.62,
+      "r2_day1": 0.8935,
+      "r2_day7": 0.6815
+    },
+    "config": {
+      "features": 12,
+      "hidden_dim": 256,
+      "num_layers": 2,
+      "architecture": "GRU with attention",
+      "learning_rate": 0.001,
+      "batch_size": 32,
+      "epochs_trained": 17,
+      "best_epoch": 2,
+      "total_parameters": 1524225,
+      "seed": 42,
+      "notes": "Standard architecture with reproducible seed. Nearly identical to baseline. Severe overfitting - best at epoch 2, then diverges (train=0.030, val=0.308 at epoch 17)."
+    }
   }
 }

@@ -1,17 +1,16 @@
 """
-Weather Temperature Prediction Model - Phase 1
+Weather Temperature Prediction Model - Standard GRU
 Single-task model for 7-day temperature forecasting
 
 Features:
-- 26 input variables (12 base + 12 lagged + 2 rolling statistics)
+- 12 input variables (excludes PP and QQ due to data quality issues)
   - Base features: TG, TN, TX, RR, SS, HU, FG, FX, CC, SD, DAY_SIN, DAY_COS
-  - Lagged features: LAG1 and LAG7 for TG, TN, TX, RR, HU, FG
-  - Rolling statistics: 7-day mean and std for TG
-  - Excludes PP and QQ due to data quality issues
 - 7-day forecast horizon
 - Year-based train/val/test split (1957-2022 / 2023 / 2024-2025)
+- Architecture: 2-layer GRU with 256 hidden units
 - Autoregressive decoder with attention mechanism
 - Gradient clipping for stability
+- Reproducible results with seed=42
 - Comprehensive evaluation metrics and visualization
 """
 
@@ -30,6 +29,19 @@ import subprocess
 import webbrowser
 import time
 import matplotlib.pyplot as plt
+import random
+
+# Set random seeds for reproducibility
+SEED = 42
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+torch.cuda.manual_seed_all(SEED)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
+print(f"Random seed set to {SEED} for reproducibility")
 
 # ============================================================================
 # DATA LOADING AND PREPROCESSING
@@ -367,7 +379,7 @@ trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 print(f"Model architecture:")
 print(f"  Encoder: {NUM_LAYERS}-layer GRU with {HIDDEN_DIM} hidden units")
-print(f"  Decoder: Autoregressive with attention mechanism")
+print(f"  Decoder: {NUM_LAYERS}-layer autoregressive with attention mechanism")
 print(f"  Total parameters: {total_params:,}")
 print(f"  Trainable parameters: {trainable_params:,}")
 
@@ -386,11 +398,6 @@ optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
     optimizer, mode='min', factor=0.5, patience=5
 )
-
-# TensorBoard
-log_dir = "logs/fit/" + datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-writer = SummaryWriter(log_dir)
-os.makedirs(os.path.dirname(log_dir), exist_ok=True)
 
 print(f"Training configuration:")
 print(f"  Learning rate: {LEARNING_RATE}")
