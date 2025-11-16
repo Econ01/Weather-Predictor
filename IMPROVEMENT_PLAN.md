@@ -231,23 +231,256 @@ actual_3_day = y_test_unscaled[idx]
 
 ### Implementation Checklist
 
-- [ ] **Task 0.1**: Create `model_temperature.py` (copy from model.py as template)
-- [ ] **Task 0.2**: Update data loading to use **12 features** (exclude PP, QQ) → 1 target (TG)
-- [ ] **Task 0.3**: Change FORECAST_DAYS from 3 to 7
-- [ ] **Task 0.4**: Implement year-based data split (1957-2022 / 2023 / 2024-2025)
-- [ ] **Task 0.5**: Update scaling (only 1 target, simpler than multi-task)
-- [ ] **Task 0.6**: Implement autoregressive decoder (Issue #2 solution)
-- [ ] **Task 0.7**: Add attention mechanism (Issue #3 solution)
-- [ ] **Task 0.8**: Add gradient clipping (Issue #7 solution)
-- [ ] **Task 0.9**: Adjust hyperparameters (Issue #5 - more epochs, higher LR)
-- [ ] **Task 0.10**: Implement year-long visualization (365-day plot)
-- [ ] **Task 0.11**: Add comprehensive metrics (MAE, RMSE, R² per forecast day)
-- [ ] **Task 0.12**: Train and evaluate model
-- [ ] **Task 0.13**: Document results and learnings
+- [x] **Task 0.1**: Create `model_temperature.py` (copy from model.py as template) ✅
+- [x] **Task 0.2**: Update data loading to use **12 features** (exclude PP, QQ) → 1 target (TG) ✅
+- [x] **Task 0.3**: Change FORECAST_DAYS from 3 to 7 ✅
+- [x] **Task 0.4**: Implement year-based data split (1957-2022 / 2023 / 2024-2025) ✅
+- [x] **Task 0.5**: Update scaling (only 1 target, simpler than multi-task) ✅
+- [x] **Task 0.6**: Implement autoregressive decoder (Issue #2 solution) ✅
+- [x] **Task 0.7**: Add attention mechanism (Issue #3 solution) ✅
+- [x] **Task 0.8**: Add gradient clipping (Issue #7 solution) ✅
+- [x] **Task 0.9**: Adjust hyperparameters (Issue #5 - more epochs, higher LR) ✅
+- [x] **Task 0.10**: Implement year-long visualization (365-day plot) ✅
+- [x] **Task 0.11**: Add comprehensive metrics (MAE, RMSE, R² per forecast day) ✅
+- [x] **Task 0.12**: Train and evaluate model ✅
+- [x] **Task 0.13**: Document results and learnings ✅
+- [x] **Task 0.14**: Save train/val/test CSV files ✅
+- [x] **Task 0.15**: Create baseline for comparison ✅
 
-**After Phase 0 Success:**
-- Apply architecture to precipitation model (with special handling for zero-inflation)
-- Apply architecture to humidity/wind models
+**Phase 0 Status**: ✅ **COMPLETE** (2025-11-16)
+
+**Results**:
+- Overall MAE: 23.29 (2.33°C) - **Exceeds target** (3.0°C)
+- 1-Day MAE: 14.91 (1.49°C) - **Exceeds stretch goal** (1.5°C)
+- 7-Day MAE: 26.33 (2.63°C) - **Exceeds target** (4.0°C)
+- R²: 0.752 - **Meets target** (0.7)
+- Model successfully tracks temperature fluctuations (not just mean values)
+
+**Baseline Saved**: `baselines/phase0_initial/` contains model, results, visualization
+
+---
+
+## PHASE 1: Model Improvements
+
+**Goal**: Improve upon Phase 0 baseline (MAE: 23.29, R²: 0.752)
+
+**Status**: Planning
+
+### Improvement Roadmap (Prioritized)
+
+#### **Priority 1: Feature Engineering** ⭐ HIGHEST IMPACT
+
+**Expected Gain**: +10-15% accuracy | **Effort**: Easy (1-2 hours) | **Risk**: Low
+
+**Implementation**: Add to `dataManager.py` `EngineerFeatures()`:
+
+```python
+# A) Lagged features (yesterday's and last week's values)
+for col in ['TG', 'TN', 'TX', 'RR', 'HU', 'FG']:
+    master_df[f'{col}_LAG1'] = master_df[col].shift(1)
+    master_df[f'{col}_LAG7'] = master_df[col].shift(7)
+
+# B) Rolling statistics (7-day trends)
+master_df['TG_ROLLING_7_MEAN'] = master_df['TG'].rolling(7).mean()
+master_df['TG_ROLLING_7_STD'] = master_df['TG'].rolling(7).std()
+master_df['RR_ROLLING_7_SUM'] = master_df['RR'].rolling(7).sum()
+
+# C) Derivative features (rate of change)
+master_df['TG_TREND'] = master_df['TG'] - master_df['TG'].shift(1)
+master_df['TEMP_RANGE'] = master_df['TX'] - master_df['TN']
+master_df['TG_VOLATILITY'] = master_df['TG'].rolling(7).std()
+
+# D) Month encoding (better seasonality)
+month = master_df.index.month
+master_df['MONTH_SIN'] = np.sin(2 * np.pi * month / 12)
+master_df['MONTH_COS'] = np.cos(2 * np.pi * month / 12)
+
+master_df.dropna(inplace=True)
+```
+
+**Why**: Model currently lags on rapid changes - temporal features will capture trends
+
+**Checklist**:
+- [ ] Add lagged features (LAG1, LAG7)
+- [ ] Add rolling statistics (mean, std, sum)
+- [ ] Add derivative features (trend, range, volatility)
+- [ ] Add month encoding
+- [ ] Update FEATURE_COLS in model
+- [ ] Retrain and compare to baseline
+
+---
+
+#### **Priority 2: Increase Model Capacity**
+
+**Expected Gain**: +5-10% accuracy | **Effort**: Very Easy (5 min) | **Risk**: Medium (might overfit)
+
+**Implementation**: In `model_temperature.py`:
+```python
+HIDDEN_DIM = 512  # Change from 256
+NUM_LAYERS = 3    # Change from 2
+```
+
+**Why**: Complex weather patterns may need more parameters
+
+**Checklist**:
+- [ ] Change HIDDEN_DIM to 512
+- [ ] Change NUM_LAYERS to 3
+- [ ] Retrain and monitor for overfitting
+- [ ] Compare to baseline
+
+---
+
+#### **Priority 3: Weighted Loss by Forecast Day**
+
+**Expected Gain**: Better 1-3 day accuracy | **Effort**: Very Easy (10 min) | **Risk**: Low
+
+**Implementation**: In training loop:
+```python
+day_weights = torch.tensor([1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4]).to(device)
+loss = 0
+for day in range(FORECAST_DAYS):
+    loss += day_weights[day] * criterion(y_pred[:, day, :], y_batch[:, day, :])
+loss = loss / day_weights.sum()
+```
+
+**Why**: Near-term forecasts matter more than far-term
+
+**Checklist**:
+- [ ] Implement weighted loss
+- [ ] Train and compare metrics
+- [ ] Verify 1-day accuracy improves
+
+---
+
+#### **Priority 4: Switch to LSTM**
+
+**Expected Gain**: +5-10% accuracy | **Effort**: Easy (30 min) | **Risk**: Low
+
+**Implementation**: Replace GRU with LSTM in Encoder/Decoder:
+```python
+self.lstm = nn.LSTM(input_dim, hidden_dim, num_layers=num_layers,
+                    batch_first=True, dropout=dropout)
+# Note: LSTM returns (output, (hidden, cell))
+```
+
+**Why**: Better memory for 30-day sequences
+
+**Checklist**:
+- [ ] Update Encoder to use LSTM
+- [ ] Update Decoder to use LSTM
+- [ ] Handle (hidden, cell) tuples
+- [ ] Retrain and compare
+
+---
+
+#### **Priority 5: Ensemble Models** ⭐ HIGH IMPACT
+
+**Expected Gain**: +10-20% accuracy | **Effort**: Medium | **Risk**: Low
+
+**Implementation**: Train 3-5 models with different seeds, average predictions
+
+**Why**: Always improves performance, reduces variance
+
+**Checklist**:
+- [ ] Train 3 models with seeds [42, 123, 456]
+- [ ] Implement ensemble prediction function
+- [ ] Evaluate ensemble vs single models
+- [ ] Compare to baseline
+
+---
+
+#### **Priority 6: Cosine Annealing LR Schedule**
+
+**Expected Gain**: +2-5% accuracy | **Effort**: Very Easy (5 min) | **Risk**: Low
+
+**Implementation**:
+```python
+scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+    optimizer, T_0=10, T_mult=2, eta_min=1e-6
+)
+```
+
+**Checklist**:
+- [ ] Replace current scheduler
+- [ ] Train and compare convergence
+
+---
+
+#### **Priority 7: Data Augmentation**
+
+**Expected Gain**: +5% accuracy | **Effort**: Very Easy (5 min) | **Risk**: Low
+
+**Implementation**: Add noise during training only:
+```python
+if training:
+    noise = torch.randn_like(x_batch) * 0.1
+    x_batch = x_batch + noise
+```
+
+**Checklist**:
+- [ ] Add noise augmentation
+- [ ] Train and evaluate robustness
+
+---
+
+#### **Priority 8: Curriculum Learning**
+
+**Expected Gain**: Better convergence | **Effort**: Medium (1 hr) | **Risk**: Medium
+
+**Implementation**: Start with 1-day forecasts, gradually increase
+
+**Checklist**:
+- [ ] Implement forecast_days schedule
+- [ ] Modify training loop
+- [ ] Compare learning curves
+
+---
+
+#### **Priority 9: Residual Connections**
+
+**Expected Gain**: +3-5% accuracy | **Effort**: Medium (1 hr) | **Risk**: Low
+
+**Implementation**: Add skip connections in decoder
+
+**Checklist**:
+- [ ] Add residual connections
+- [ ] Train and evaluate
+
+---
+
+### Comparison Tracking
+
+Use `compare_models.py` to track all experiments:
+
+```python
+from compare_models import ModelComparison
+
+tracker = ModelComparison()
+
+# After training new model:
+tracker.add_result('with_lagged_features', {
+    'mae_overall': 21.5,  # Your results
+    'rmse_overall': 28.3,
+    'r2_overall': 0.780,
+    'mae_day1': 13.2,
+    'mae_day7': 24.1,
+    ...
+})
+
+# Compare all models:
+tracker.compare(baseline='baseline')
+
+# Plot comparison:
+tracker.plot_comparison(metric='mae_overall')
+```
+
+**Baseline stored in**: `model_results.json`
+
+---
+
+**After Phase 1:**
+- Apply best improvements to precipitation model (with special handling for zero-inflation)
+- Apply to humidity/wind models
 - Consider multi-task learning with task-specific heads (Issue #12)
 
 ### Future Data Pipeline Improvements

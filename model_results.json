@@ -1,0 +1,28 @@
+{
+  "baseline": {
+    "metrics": {
+      "mae_overall": 23.29,
+      "rmse_overall": 30.6,
+      "r2_overall": 0.752,
+      "mae_day1": 14.91,
+      "mae_day2": 20.98,
+      "mae_day3": 23.79,
+      "mae_day4": 25.07,
+      "mae_day5": 25.79,
+      "mae_day6": 26.13,
+      "mae_day7": 26.33,
+      "rmse_day1": 20.02,
+      "r2_day1": 0.894,
+      "r2_day7": 0.6961
+    },
+    "config": {
+      "features": 12,
+      "hidden_dim": 256,
+      "num_layers": 2,
+      "architecture": "GRU with attention",
+      "learning_rate": 0.001,
+      "batch_size": 32,
+      "epochs": 18
+    }
+  }
+}
