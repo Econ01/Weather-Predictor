@@ -457,11 +457,6 @@ for epoch in range(N_EPOCHS):
 
     avg_val_loss = val_loss / len(val_loader.dataset)
 
-    # Log to TensorBoard
-    writer.add_scalar('Loss/train', avg_train_loss, epoch)
-    writer.add_scalar('Loss/validation', avg_val_loss, epoch)
-    writer.add_scalar('Learning_rate', optimizer.param_groups[0]['lr'], epoch)
-
     # Print progress
     print(f"Epoch {epoch+1}/{N_EPOCHS} | "
           f"Train Loss: {avg_train_loss:.6f} | "
@@ -483,7 +478,6 @@ for epoch in range(N_EPOCHS):
             print(f"\nEarly stopping triggered after {epoch+1} epochs")
             break
 
-writer.close()
 print("\nTraining complete!")
 
 # ============================================================================
