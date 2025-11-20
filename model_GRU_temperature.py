@@ -573,29 +573,32 @@ persistent_predictions, sarima_predictions = benchmarks.compute_benchmarks(
 )
 
 # ============================================================================
-# METRICS
+# METRICS (2024 DATA ONLY - FIRST 365 SAMPLES)
 # ============================================================================
 
-print(f"\n{Colors.BOLD}{Colors.HEADER}Comprehensive Metrics:{Colors.ENDC}")
+print(f"\n{Colors.BOLD}{Colors.HEADER}Comprehensive Metrics (2024 Test Year):{Colors.ENDC}")
 print(Colors.HEADER + "-" * 80 + Colors.ENDC)
 
-# Calculate metrics for all three models
-actual_flat = actuals.flatten()
+# Limit to first 365 samples (2024 only) to match visualization
+n_samples_for_metrics = min(365, len(predictions))
+
+# Calculate metrics for all three models on 2024 data only
+actual_flat = actuals[:n_samples_for_metrics].flatten()
 
 # GRU Model
-pred_flat_gru = predictions.flatten()
+pred_flat_gru = predictions[:n_samples_for_metrics].flatten()
 mae_gru = mean_absolute_error(actual_flat, pred_flat_gru)
 rmse_gru = np.sqrt(mean_squared_error(actual_flat, pred_flat_gru))
 r2_gru = r2_score(actual_flat, pred_flat_gru)
 
 # Persistent Model
-pred_flat_persistent = persistent_predictions.flatten()
+pred_flat_persistent = persistent_predictions[:n_samples_for_metrics].flatten()
 mae_persistent = mean_absolute_error(actual_flat, pred_flat_persistent)
 rmse_persistent = np.sqrt(mean_squared_error(actual_flat, pred_flat_persistent))
 r2_persistent = r2_score(actual_flat, pred_flat_persistent)
 
 # SARIMA Model
-pred_flat_sarima = sarima_predictions.flatten()
+pred_flat_sarima = sarima_predictions[:n_samples_for_metrics].flatten()
 mae_sarima = mean_absolute_error(actual_flat, pred_flat_sarima)
 rmse_sarima = np.sqrt(mean_squared_error(actual_flat, pred_flat_sarima))
 r2_sarima = r2_score(actual_flat, pred_flat_sarima)
@@ -606,27 +609,27 @@ print(f"{Colors.BLUE}{Colors.BOLD}{'GRU (Ours)':<20}{Colors.ENDC} {Colors.GREEN}
 print(f"{'Persistent':<20} {mae_persistent:<15.2f} {mae_persistent/10:<12.2f} {rmse_persistent:<16.2f} {rmse_persistent/10:<12.2f} {r2_persistent:<10.4f}")
 print(f"{'SARIMA':<20} {mae_sarima:<15.2f} {mae_sarima/10:<12.2f} {rmse_sarima:<16.2f} {rmse_sarima/10:<12.2f} {r2_sarima:<10.4f}")
 
-# Per-day metrics for all models
-print(f"\n{Colors.BOLD}Per-Day Forecast Performance:{Colors.ENDC}")
+# Per-day metrics for all models (2024 data only)
+print(f"\n{Colors.BOLD}Per-Day Forecast Performance (2024):{Colors.ENDC}")
 print(f"{Colors.BOLD}{'Day':<6} {'Model':<15} {'MAE (°C)':<12} {'RMSE (°C)':<12} {'R²':<10}{Colors.ENDC}")
 print("-" * 60)
 for day in range(FORECAST_DAYS):
-    actual_day = actuals[:, day, 0]
+    actual_day = actuals[:n_samples_for_metrics, day, 0]
 
     # GRU
-    pred_day_gru = predictions[:, day, 0]
+    pred_day_gru = predictions[:n_samples_for_metrics, day, 0]
     mae_gru_day = mean_absolute_error(actual_day, pred_day_gru)
     rmse_gru_day = np.sqrt(mean_squared_error(actual_day, pred_day_gru))
     r2_gru_day = r2_score(actual_day, pred_day_gru)
 
     # Persistent
-    pred_day_persistent = persistent_predictions[:, day, 0]
+    pred_day_persistent = persistent_predictions[:n_samples_for_metrics, day, 0]
     mae_persistent_day = mean_absolute_error(actual_day, pred_day_persistent)
     rmse_persistent_day = np.sqrt(mean_squared_error(actual_day, pred_day_persistent))
     r2_persistent_day = r2_score(actual_day, pred_day_persistent)
 
     # SARIMA
-    pred_day_sarima = sarima_predictions[:, day, 0]
+    pred_day_sarima = sarima_predictions[:n_samples_for_metrics, day, 0]
     mae_sarima_day = mean_absolute_error(actual_day, pred_day_sarima)
     rmse_sarima_day = np.sqrt(mean_squared_error(actual_day, pred_day_sarima))
     r2_sarima_day = r2_score(actual_day, pred_day_sarima)
@@ -637,12 +640,12 @@ for day in range(FORECAST_DAYS):
     print()
 
 # ============================================================================
-# YEAR-LONG VISUALIZATION WITH BENCHMARKS
+# YEAR-LONG VISUALIZATION WITH BENCHMARKS (2024 DATA ONLY)
 # ============================================================================
 
-print(f"\n{Colors.CYAN}Generating year-long visualization with benchmarks...{Colors.ENDC}")
+print(f"\n{Colors.CYAN}Generating year-long visualization with benchmarks (2024 data)...{Colors.ENDC}")
 
-# Use first 365 samples from test set (or all if less)
+# Use first 365 samples from test set (2024 year only)
 n_samples_to_plot = min(365, len(predictions))
 
 fig, axes = plt.subplots(3, 1, figsize=(18, 11))
@@ -766,7 +769,7 @@ lines1, labels1 = axes[2].get_legend_handles_labels()
 lines2, labels2 = ax3_twin.get_legend_handles_labels()
 axes[2].legend(lines1 + lines2, labels1 + labels2, loc='upper left', fontsize=8)
 
-plt.suptitle(f'Temperature Forecast Evaluation with Benchmarks ({test_dates[0].strftime("%Y-%m-%d")} to {test_dates[n_samples_to_plot-1].strftime("%Y-%m-%d")})',
+plt.suptitle(f'Temperature Forecast Evaluation with Benchmarks - 2024 Test Year ({test_dates[0].strftime("%Y-%m-%d")} to {test_dates[n_samples_to_plot-1].strftime("%Y-%m-%d")})',
              fontsize=14, fontweight='bold', y=0.995)
 plt.tight_layout()
 plt.savefig('./figures/temperature_forecast_evaluation.png', dpi=800, bbox_inches='tight')
