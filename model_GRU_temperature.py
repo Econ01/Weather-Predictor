@@ -424,7 +424,7 @@ print(f"  Trainable parameters: {trainable_params:,}")
 print("\n[8/9] Setting up training...")
 
 # Loss and optimizer
-criterion = nn.MSELoss()
+criterion = nn.L1Loss()  # MAE Loss (L1 norm)
 LEARNING_RATE = 0.0001
 PATIENCE = 20
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
@@ -437,7 +437,7 @@ scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
 print(f"Training configuration:")
 print(f"  Learning rate: {LEARNING_RATE}")
 print(f"  Batch size: {BATCH_SIZE}")
-print(f"  Loss function: MSELoss")
+print(f"  Loss function: L1Loss (MAE)")
 print(f"  Optimizer: Adam")
 print(f"  Scheduler: ReduceLROnPlateau (factor=0.5, patience=5)")
 
