@@ -14,7 +14,7 @@ import os
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 
-def compute_benchmarks(actuals, x_test, train_df, val_df, test_df, forecast_days, Colors):
+def compute_benchmarks(actuals, x_test, train_df, val_df, test_df, forecast_days, Colors, test_dates=None):
     """
     Compute predictions for benchmark models (Persistent and SARIMA).
 
@@ -36,6 +36,8 @@ def compute_benchmarks(actuals, x_test, train_df, val_df, test_df, forecast_days
         Number of days to forecast (e.g., 3)
     Colors : class
         Color class for terminal output formatting
+    test_dates : list, optional
+        List of dates corresponding to first forecast day for each test sample
 
     Returns:
     --------
@@ -72,21 +74,46 @@ def compute_benchmarks(actuals, x_test, train_df, val_df, test_df, forecast_days
     else:
         print(f"  {Colors.YELLOW}Cache not found. Computing Persistent Model predictions...{Colors.ENDC}")
 
-        # For persistent model: today's weather = yesterday's weather
-        # Day 1 forecast = last observed value (day 30)
-        # Day 2 forecast = actual value of day 1
-        # Day 3 forecast = actual value of day 2
+        # For persistent model: all forecast days = last observed temperature
+        # This is the true naive forecast: tomorrow = today
 
         persistent_predictions = np.zeros_like(actuals)
 
-        for i in range(len(x_test)):
-            # Day 1: use last observed value from input sequence
-            tg_idx = 0  # TG is at index 0
-            persistent_predictions[i, 0, 0] = x_test[i, -1, tg_idx]
+        # Combine all dataframes to get full TG history
+        full_df = pd.concat([train_df, val_df, test_df])
 
-            # Days 2-3: use the actual value from the previous day
-            for day in range(1, forecast_days):
-                persistent_predictions[i, day, 0] = actuals[i, day - 1, 0]
+        if test_dates is not None:
+            # Use test_dates to get the exact last observed TG value
+            from datetime import timedelta
+
+            for i in range(len(x_test)):
+                # Get the date of the first forecast day
+                forecast_start_date = test_dates[i]
+
+                # Get TG value from the day before (last observed value)
+                last_observed_date = forecast_start_date - timedelta(days=1)
+                last_observed_tg = full_df.loc[last_observed_date, 'TG']
+
+                # Persistent model: all forecast days use the same last observed value
+                for day in range(forecast_days):
+                    persistent_predictions[i, day, 0] = last_observed_tg
+        else:
+            # Fallback: use test_df indices (assumes test samples align with test_df dates)
+            print(f"  {Colors.YELLOW}Warning: test_dates not provided, using fallback method{Colors.ENDC}")
+            test_tg_values = test_df['TG'].values
+
+            for i in range(len(x_test)):
+                # Use the TG value from the day before this test sample
+                # (i-1 in test_df corresponds to the last observed day)
+                if i > 0:
+                    last_observed_tg = test_tg_values[i - 1]
+                else:
+                    # For first test sample, use last value from validation set
+                    last_observed_tg = val_df['TG'].iloc[-1]
+
+                # All forecast days use the same last observed value
+                for day in range(forecast_days):
+                    persistent_predictions[i, day, 0] = last_observed_tg
 
         # Save to cache
         np.save(persistent_cache_path, persistent_predictions)

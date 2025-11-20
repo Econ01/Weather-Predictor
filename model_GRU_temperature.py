@@ -569,7 +569,8 @@ persistent_predictions, sarima_predictions = benchmarks.compute_benchmarks(
     val_df=val_df,
     test_df=test_df,
     forecast_days=FORECAST_DAYS,
-    Colors=Colors
+    Colors=Colors,
+    test_dates=test_dates
 )
 
 # ============================================================================
