@@ -21,8 +21,6 @@ from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 import torch
 import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
-import datetime
-import os
 import matplotlib.pyplot as plt
 import random
 
