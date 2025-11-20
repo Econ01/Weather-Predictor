@@ -446,12 +446,12 @@ def EngineerFeatures(master_df):
 
     # Define final feature and target columns
     # EXCLUDE PP and QQ (contaminated data - see data quality analysis)
-    # EXCLUDE TG from features (slightly better without it)
+    # EXCLUDE TG from features
     FEATURE_COLS = [
         'TN', 'TX', 'RR', 'SS', 'HU',
-        'FG', 'FX', 'CC', 'SD', 'DAY_SIN', 'DAY_COS'
+        'FG', 'FX', 'CC', 'SD'
     ]
-    TARGET_COLS = ['TG', 'FG', 'IS_RAIN']
+    TARGET_COLS = ['TG']
 
     # Get lists of columns that actually exist in the dataframe in case some files failed to load
     final_features = [col for col in FEATURE_COLS if col in master_df.columns]

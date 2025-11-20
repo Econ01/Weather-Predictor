@@ -27,6 +27,7 @@ import matplotlib.pyplot as plt
 import random
 import warnings
 import os
+import time
 import benchmarks
 warnings.filterwarnings('ignore')
 
@@ -69,7 +70,7 @@ FEATURE_COLS = feature_cols
 TARGET_COL = 'TG'
 
 # Configuration
-INPUT_DAYS = 30
+INPUT_DAYS = 15
 FORECAST_DAYS = 3
 N_FEATURES = len(FEATURE_COLS)
 
@@ -126,8 +127,9 @@ print(f"  y_data shape: {y_data.shape}  # (samples, {FORECAST_DAYS} days, 1 targ
 print("\n[3/9] Splitting data by year...")
 
 # Find split indices based on dates
-train_end_date = pd.Timestamp('2022-12-31')
-val_end_date = pd.Timestamp('2023-12-31')
+# Using 5 years for validation (2018-2022) instead of 1 year (2023)
+train_end_date = pd.Timestamp('2017-12-31')  # Train: 1957-2017 (60 years)
+val_end_date = pd.Timestamp('2022-12-31')    # Val: 2018-2022 (5 years)
 
 # Find the indices
 train_idx = None
@@ -276,8 +278,8 @@ print(f"Using device: {device}")
 
 print("\n[7/9] Building model architecture...")
 
-HIDDEN_DIM = 256
-NUM_LAYERS = 2
+HIDDEN_DIM = 64
+NUM_LAYERS = 1
 DROPOUT = 0.2
 
 class Encoder(nn.Module):
@@ -423,8 +425,8 @@ print("\n[8/9] Setting up training...")
 
 # Loss and optimizer
 criterion = nn.MSELoss()
-LEARNING_RATE = 0.001
-PATIENCE = 10
+LEARNING_RATE = 0.0001
+PATIENCE = 20
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # Learning rate scheduler
@@ -437,13 +439,16 @@ print(f"  Learning rate: {LEARNING_RATE}")
 print(f"  Batch size: {BATCH_SIZE}")
 print(f"  Loss function: MSELoss")
 print(f"  Optimizer: Adam")
-print(f"  Scheduler: ReduceLROnPlateau (factor=0.5, patience={PATIENCE})")
+print(f"  Scheduler: ReduceLROnPlateau (factor=0.5, patience=5)")
 
 # ============================================================================
 # TRAINING LOOP
 # ============================================================================
 
 print("\n[9/9] Training model...")
+
+# Start timing GRU (training + evaluation)
+gru_start_time = time.time()
 
 N_EPOCHS = 100
 MAX_GRAD_NORM = 1.0
@@ -513,7 +518,8 @@ for epoch in range(N_EPOCHS):
         best_val_loss = avg_val_loss
         epochs_no_improve = 0
         torch.save(model.state_dict(), 'best_model_temperature.pth')
-        print(f"  {Colors.GREEN}→ Best model saved (val_loss: {best_val_loss:.6f}){Colors.ENDC}")
+        best_model_time = time.time()  # Track time when best model was found
+        print(f"  {Colors.GREEN}-> Best model saved (val_loss: {best_val_loss:.6f}){Colors.ENDC}")
     else:
         epochs_no_improve += 1
         if epochs_no_improve >= PATIENCE:
@@ -557,12 +563,15 @@ actuals = y_scaler.inverse_transform(
     actuals_scaled.reshape(-1, 1)
 ).reshape(actuals_scaled.shape)
 
+# End timing GRU (use time when best model was found, not end of all epochs)
+gru_time = best_model_time - gru_start_time
+
 # ============================================================================
 # BENCHMARK MODELS
 # ============================================================================
 
 # Compute benchmark predictions (Persistent and SARIMA models)
-persistent_predictions, sarima_predictions = benchmarks.compute_benchmarks(
+persistent_predictions, sarima_predictions, persistent_time, sarima_time = benchmarks.compute_benchmarks(
     actuals=actuals,
     x_test=x_test,
     train_df=train_df,
@@ -640,6 +649,15 @@ for day in range(FORECAST_DAYS):
     print(f"{'':6} {'SARIMA':<15} {mae_sarima_day/10:<12.2f} {rmse_sarima_day/10:<12.2f} {r2_sarima_day:<10.4f}")
     print()
 
+# Execution Time Comparison
+print(f"\n{Colors.BOLD}Execution Time (Training + Evaluation):{Colors.ENDC}")
+print(f"{Colors.BOLD}{'Model':<20} {'Time':<25} {'Time (minutes)':<15}{Colors.ENDC}")
+print("-" * 65)
+print(f"{Colors.BLUE}{Colors.BOLD}{'GRU (Ours)':<20}{Colors.ENDC} {Colors.GREEN}{gru_time:<10.2f}s (to best model) {gru_time/60:<15.2f}{Colors.ENDC}")
+print(f"{'Persistent':<20} {persistent_time*1000:<10.2f}ms               {persistent_time/60:<15.4f}")
+print(f"{'SARIMA':<20} {sarima_time:<10.2f}s                {sarima_time/60:<15.2f}")
+print()
+
 # ============================================================================
 # YEAR-LONG VISUALIZATION WITH BENCHMARKS (2024 DATA ONLY)
 # ============================================================================
@@ -659,10 +677,13 @@ day1_pred_sarima = sarima_predictions[:n_samples_to_plot, 0, 0]
 
 day1_mae_gru = mean_absolute_error(day1_actual, day1_pred_gru)
 day1_rmse_gru = np.sqrt(mean_squared_error(day1_actual, day1_pred_gru))
+day1_r2_gru = r2_score(day1_actual, day1_pred_gru)
 day1_mae_persistent = mean_absolute_error(day1_actual, day1_pred_persistent)
 day1_rmse_persistent = np.sqrt(mean_squared_error(day1_actual, day1_pred_persistent))
+day1_r2_persistent = r2_score(day1_actual, day1_pred_persistent)
 day1_mae_sarima = mean_absolute_error(day1_actual, day1_pred_sarima)
 day1_rmse_sarima = np.sqrt(mean_squared_error(day1_actual, day1_pred_sarima))
+day1_r2_sarima = r2_score(day1_actual, day1_pred_sarima)
 
 axes[0].plot(range(n_samples_to_plot), day1_actual,
              'k-', label='Actual', linewidth=1.5, alpha=0.7)
@@ -678,9 +699,9 @@ axes[0].legend(loc='upper right')
 axes[0].grid(True, alpha=0.3)
 
 # Add error metrics text box
-textstr = (f'GRU:        MAE={day1_mae_gru/10:.2f}°C, RMSE={day1_rmse_gru/10:.2f}°C\n'
-           f'Persistent: MAE={day1_mae_persistent/10:.2f}°C, RMSE={day1_rmse_persistent/10:.2f}°C\n'
-           f'SARIMA:     MAE={day1_mae_sarima/10:.2f}°C, RMSE={day1_rmse_sarima/10:.2f}°C')
+textstr = (f'GRU:        MAE={day1_mae_gru/10:.2f}°C, RMSE={day1_rmse_gru/10:.2f}°C, R²={day1_r2_gru:.4f}\n'
+           f'Persistent: MAE={day1_mae_persistent/10:.2f}°C, RMSE={day1_rmse_persistent/10:.2f}°C, R²={day1_r2_persistent:.4f}\n'
+           f'SARIMA:     MAE={day1_mae_sarima/10:.2f}°C, RMSE={day1_rmse_sarima/10:.2f}°C, R²={day1_r2_sarima:.4f}')
 props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
 axes[0].text(0.02, 0.98, textstr, transform=axes[0].transAxes, fontsize=8,
              verticalalignment='top', bbox=props, family='monospace')
@@ -693,10 +714,13 @@ day3_pred_sarima = sarima_predictions[:n_samples_to_plot, 2, 0]
 
 day3_mae_gru = mean_absolute_error(day3_actual, day3_pred_gru)
 day3_rmse_gru = np.sqrt(mean_squared_error(day3_actual, day3_pred_gru))
+day3_r2_gru = r2_score(day3_actual, day3_pred_gru)
 day3_mae_persistent = mean_absolute_error(day3_actual, day3_pred_persistent)
 day3_rmse_persistent = np.sqrt(mean_squared_error(day3_actual, day3_pred_persistent))
+day3_r2_persistent = r2_score(day3_actual, day3_pred_persistent)
 day3_mae_sarima = mean_absolute_error(day3_actual, day3_pred_sarima)
 day3_rmse_sarima = np.sqrt(mean_squared_error(day3_actual, day3_pred_sarima))
+day3_r2_sarima = r2_score(day3_actual, day3_pred_sarima)
 
 axes[1].plot(range(n_samples_to_plot), day3_actual,
              'k-', label='Actual', linewidth=1.5, alpha=0.7)
@@ -712,9 +736,9 @@ axes[1].legend(loc='upper right')
 axes[1].grid(True, alpha=0.3)
 
 # Add error metrics text box
-textstr = (f'GRU:        MAE={day3_mae_gru/10:.2f}°C, RMSE={day3_rmse_gru/10:.2f}°C\n'
-           f'Persistent: MAE={day3_mae_persistent/10:.2f}°C, RMSE={day3_rmse_persistent/10:.2f}°C\n'
-           f'SARIMA:     MAE={day3_mae_sarima/10:.2f}°C, RMSE={day3_rmse_sarima/10:.2f}°C')
+textstr = (f'GRU:        MAE={day3_mae_gru/10:.2f}°C, RMSE={day3_rmse_gru/10:.2f}°C, R²={day3_r2_gru:.4f}\n'
+           f'Persistent: MAE={day3_mae_persistent/10:.2f}°C, RMSE={day3_rmse_persistent/10:.2f}°C, R²={day3_r2_persistent:.4f}\n'
+           f'SARIMA:     MAE={day3_mae_sarima/10:.2f}°C, RMSE={day3_rmse_sarima/10:.2f}°C, R²={day3_r2_sarima:.4f}')
 props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
 axes[1].text(0.02, 0.98, textstr, transform=axes[1].transAxes, fontsize=8,
              verticalalignment='top', bbox=props, family='monospace')
@@ -764,6 +788,15 @@ axes[2].set_ylabel('MAE (°C)', fontsize=10)
 ax3_twin.set_ylabel('RMSE (°C)', fontsize=10)
 axes[2].set_xticks(days)
 axes[2].grid(True, alpha=0.3)
+
+# Add execution time text box (bottom right)
+time_textstr = (f'Execution Time:\n'
+                f'GRU (to best):  {gru_time:.1f}s ({gru_time/60:.2f}min)\n'
+                f'Persistent:     {persistent_time*1000:.1f}ms\n'
+                f'SARIMA:         {sarima_time:.1f}s ({sarima_time/60:.2f}min)')
+time_props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
+axes[2].text(0.98, 0.02, time_textstr, transform=axes[2].transAxes, fontsize=8,
+             verticalalignment='bottom', horizontalalignment='right', bbox=time_props, family='monospace')
 
 # Combine legends
 lines1, labels1 = axes[2].get_legend_handles_labels()

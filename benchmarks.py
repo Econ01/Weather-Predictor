@@ -11,6 +11,7 @@ Both models use caching to avoid recomputation on subsequent runs.
 import numpy as np
 import pandas as pd
 import os
+import time
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 
 
@@ -67,6 +68,8 @@ def compute_benchmarks(actuals, x_test, train_df, val_df, test_df, forecast_days
     # ----------------------------------------------------------------------------
     print("\n[Benchmark 1/2] Checking for cached Persistent Model predictions...")
 
+    persistent_start_time = time.time()
+
     if os.path.exists(persistent_cache_path):
         print(f"  {Colors.GREEN}Found cached predictions. Loading from disk...{Colors.ENDC}")
         persistent_predictions = np.load(persistent_cache_path)
@@ -119,10 +122,15 @@ def compute_benchmarks(actuals, x_test, train_df, val_df, test_df, forecast_days
         np.save(persistent_cache_path, persistent_predictions)
         print(f"  {Colors.GREEN}Computed and saved persistent predictions for {len(persistent_predictions)} samples{Colors.ENDC}")
 
+    persistent_end_time = time.time()
+    persistent_time = persistent_end_time - persistent_start_time
+
     # ----------------------------------------------------------------------------
     # 2. SARIMA MODEL
     # ----------------------------------------------------------------------------
     print("\n[Benchmark 2/2] Checking for cached SARIMA predictions...")
+
+    sarima_start_time = time.time()
 
     if os.path.exists(sarima_cache_path):
         print(f"  {Colors.GREEN}Found cached predictions. Loading from disk...{Colors.ENDC}")
@@ -189,4 +197,7 @@ def compute_benchmarks(actuals, x_test, train_df, val_df, test_df, forecast_days
         np.save(sarima_cache_path, sarima_predictions)
         print(f"  {Colors.GREEN}Computed and saved SARIMA predictions for {len(sarima_predictions)} samples{Colors.ENDC}")
 
-    return persistent_predictions, sarima_predictions
+    sarima_end_time = time.time()
+    sarima_time = sarima_end_time - sarima_start_time
+
+    return persistent_predictions, sarima_predictions, persistent_time, sarima_time
