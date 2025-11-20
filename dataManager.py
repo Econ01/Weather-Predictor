@@ -493,8 +493,7 @@ def load_and_process_data(run_plots=True, save_plots=True, show_plots=False, sav
     print(f"\nTotal Features: {len(features)}")
     print(f"Total Targets: {len(targets)}")
 
-    print("\nData processing complete. First 5 rows of final data:")
-    print(clean_feature_df.head())
+    print("\nData processing complete!")
 
     return clean_feature_df, features, targets
 

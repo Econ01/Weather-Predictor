@@ -1,17 +1,18 @@
 """
 Weather Temperature Prediction Model - Standard GRU
-Single-task model for 7-day temperature forecasting
+Single-task model for 3-day temperature forecasting
 
 Features:
 - 12 input variables (excludes PP and QQ due to data quality issues)
   - Base features: TG, TN, TX, RR, SS, HU, FG, FX, CC, SD, DAY_SIN, DAY_COS
-- 7-day forecast horizon
+- 3-day forecast horizon
 - Year-based train/val/test split (1957-2022 / 2023 / 2024-2025)
 - Architecture: 2-layer GRU with 256 hidden units
 - Autoregressive decoder with attention mechanism
 - Gradient clipping for stability
 - Reproducible results with seed=42
 - Comprehensive evaluation metrics and visualization
+- Benchmarked against Persistent and SARIMA models
 """
 
 import numpy as np
@@ -24,6 +25,22 @@ import torch.nn as nn
 from torch.utils.data import TensorDataset, DataLoader
 import matplotlib.pyplot as plt
 import random
+import warnings
+import os
+import benchmarks
+warnings.filterwarnings('ignore')
+
+# ANSI color codes for terminal output
+class Colors:
+    HEADER = '\033[95m'
+    BLUE = '\033[94m'
+    CYAN = '\033[96m'
+    GREEN = '\033[92m'
+    YELLOW = '\033[93m'
+    RED = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
 
 # Set random seeds for reproducibility
 SEED = 42
@@ -48,12 +65,12 @@ clean_df, feature_cols, target_cols = dm.load_and_process_data(run_plots=False, 
 # Use features from dataManager (26 variables with lagged and rolling features)
 FEATURE_COLS = feature_cols
 
-# Target: Only TG (Mean Temperature)
+# Target: TG (Mean Temperature)
 TARGET_COL = 'TG'
 
 # Configuration
 INPUT_DAYS = 30
-FORECAST_DAYS = 7
+FORECAST_DAYS = 3
 N_FEATURES = len(FEATURE_COLS)
 
 print(f"Input features: {N_FEATURES}")
@@ -88,7 +105,7 @@ for i in range(len(feature_data) - INPUT_DAYS - FORECAST_DAYS + 1):
     # Input: 30-day window of all features
     input_slice = feature_data[i : i + INPUT_DAYS, :]
 
-    # Output: 7-day forecast of TG only
+    # Output: 3-day forecast of TG only
     target_slice = target_data[i + INPUT_DAYS : i + INPUT_DAYS + FORECAST_DAYS, :]
 
     x_data.append(input_slice)
@@ -100,7 +117,7 @@ y_data = np.stack(y_data)
 
 print(f"Sequence creation complete!")
 print(f"  X_data shape: {x_data.shape}  # (samples, 30 days, {N_FEATURES} features)")
-print(f"  y_data shape: {y_data.shape}  # (samples, 7 days, 1 target)")
+print(f"  y_data shape: {y_data.shape}  # (samples, {FORECAST_DAYS} days, 1 target)")
 
 # ============================================================================
 # YEAR-BASED DATA SPLITTING
@@ -148,28 +165,49 @@ print(f"  Test:  {len(x_test)} samples ({test_dates[0].date()} to {test_dates[-1
 # SAVE DATASETS TO CSV
 # ============================================================================
 
-print("\n[4/9] Saving datasets to CSV...")
+print("\n[4/9] Checking for existing datasets...")
 
-# Create subset of clean_df excluding PP and QQ
-columns_to_keep = [col for col in clean_df.columns if col not in ['PP', 'QQ']]
-clean_df_filtered = clean_df[columns_to_keep]
+# Check if CSV files already exist
+train_csv_path = './modifiedData/train_data.csv'
+val_csv_path = './modifiedData/val_data.csv'
+test_csv_path = './modifiedData/test_data.csv'
 
-# Split by date
-train_df = clean_df_filtered[clean_df_filtered.index <= train_end_date]
-val_df = clean_df_filtered[(clean_df_filtered.index > train_end_date) & (clean_df_filtered.index <= val_end_date)]
-test_df = clean_df_filtered[clean_df_filtered.index > val_end_date]
+if os.path.exists(train_csv_path) and os.path.exists(val_csv_path) and os.path.exists(test_csv_path):
+    print(f"  {Colors.GREEN}Found existing CSV files. Loading from disk...{Colors.ENDC}")
+    train_df = pd.read_csv(train_csv_path, index_col=0, parse_dates=True)
+    val_df = pd.read_csv(val_csv_path, index_col=0, parse_dates=True)
+    test_df = pd.read_csv(test_csv_path, index_col=0, parse_dates=True)
 
-# Save to CSV
-train_df.to_csv('./modifiedData/train_data.csv')
-val_df.to_csv('./modifiedData/val_data.csv')
-test_df.to_csv('./modifiedData/test_data.csv')
+    print(f"  {Colors.CYAN}Loaded train_data.csv ({len(train_df)} rows, {len(train_df.columns)} columns){Colors.ENDC}")
+    print(f"  {Colors.CYAN}Loaded val_data.csv ({len(val_df)} rows, {len(val_df.columns)} columns){Colors.ENDC}")
+    print(f"  {Colors.CYAN}Loaded test_data.csv ({len(test_df)} rows, {len(test_df.columns)} columns){Colors.ENDC}")
+    print(f"  Date range - Train: {train_df.index[0].date()} to {train_df.index[-1].date()}")
+    print(f"  Date range - Val:   {val_df.index[0].date()} to {val_df.index[-1].date()}")
+    print(f"  Date range - Test:  {test_df.index[0].date()} to {test_df.index[-1].date()}")
+else:
+    print(f"  {Colors.YELLOW}CSV files not found. Creating new datasets...{Colors.ENDC}")
 
-print(f"  Saved train_data.csv ({len(train_df)} rows, {len(train_df.columns)} columns)")
-print(f"  Saved val_data.csv ({len(val_df)} rows, {len(val_df.columns)} columns)")
-print(f"  Saved test_data.csv ({len(test_df)} rows, {len(test_df.columns)} columns)")
-print(f"  Date range - Train: {train_df.index[0].date()} to {train_df.index[-1].date()}")
-print(f"  Date range - Val:   {val_df.index[0].date()} to {val_df.index[-1].date()}")
-print(f"  Date range - Test:  {test_df.index[0].date()} to {test_df.index[-1].date()}")
+    # Create subset of clean_df excluding PP and QQ
+    columns_to_keep = [col for col in clean_df.columns if col not in ['PP', 'QQ']]
+    clean_df_filtered = clean_df[columns_to_keep]
+
+    # Split by date
+    train_df = clean_df_filtered[clean_df_filtered.index <= train_end_date]
+    val_df = clean_df_filtered[(clean_df_filtered.index > train_end_date) & (clean_df_filtered.index <= val_end_date)]
+    test_df = clean_df_filtered[clean_df_filtered.index > val_end_date]
+
+    # Save to CSV
+    os.makedirs('./modifiedData', exist_ok=True)
+    train_df.to_csv(train_csv_path)
+    val_df.to_csv(val_csv_path)
+    test_df.to_csv(test_csv_path)
+
+    print(f"  {Colors.GREEN}Saved train_data.csv ({len(train_df)} rows, {len(train_df.columns)} columns){Colors.ENDC}")
+    print(f"  {Colors.GREEN}Saved val_data.csv ({len(val_df)} rows, {len(val_df.columns)} columns){Colors.ENDC}")
+    print(f"  {Colors.GREEN}Saved test_data.csv ({len(test_df)} rows, {len(test_df.columns)} columns){Colors.ENDC}")
+    print(f"  Date range - Train: {train_df.index[0].date()} to {train_df.index[-1].date()}")
+    print(f"  Date range - Val:   {val_df.index[0].date()} to {val_df.index[-1].date()}")
+    print(f"  Date range - Test:  {test_df.index[0].date()} to {test_df.index[-1].date()}")
 
 # ============================================================================
 # DATA SCALING
@@ -386,6 +424,7 @@ print("\n[8/9] Setting up training...")
 # Loss and optimizer
 criterion = nn.MSELoss()
 LEARNING_RATE = 0.001
+PATIENCE = 10
 optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
 
 # Learning rate scheduler
@@ -398,7 +437,7 @@ print(f"  Learning rate: {LEARNING_RATE}")
 print(f"  Batch size: {BATCH_SIZE}")
 print(f"  Loss function: MSELoss")
 print(f"  Optimizer: Adam")
-print(f"  Scheduler: ReduceLROnPlateau (factor=0.5, patience=5)")
+print(f"  Scheduler: ReduceLROnPlateau (factor=0.5, patience={PATIENCE})")
 
 # ============================================================================
 # TRAINING LOOP
@@ -407,11 +446,12 @@ print(f"  Scheduler: ReduceLROnPlateau (factor=0.5, patience=5)")
 print("\n[9/9] Training model...")
 
 N_EPOCHS = 100
-PATIENCE = 15
 MAX_GRAD_NORM = 1.0
 
 best_val_loss = float('inf')
 epochs_no_improve = 0
+prev_train_loss = float('inf')
+prev_val_loss = float('inf')
 
 for epoch in range(N_EPOCHS):
     # Training phase
@@ -451,11 +491,19 @@ for epoch in range(N_EPOCHS):
 
     avg_val_loss = val_loss / len(val_loader.dataset)
 
-    # Print progress
-    print(f"Epoch {epoch+1}/{N_EPOCHS} | "
-          f"Train Loss: {avg_train_loss:.6f} | "
-          f"Val Loss: {avg_val_loss:.6f} | "
-          f"LR: {optimizer.param_groups[0]['lr']:.6f}")
+    # Determine colors based on loss changes
+    train_color = Colors.GREEN if avg_train_loss < prev_train_loss else Colors.RED if avg_train_loss > prev_train_loss else Colors.ENDC
+    val_color = Colors.GREEN if avg_val_loss < prev_val_loss else Colors.RED if avg_val_loss > prev_val_loss else Colors.ENDC
+
+    # Print progress with colors
+    print(f"{Colors.BOLD}Epoch {epoch+1}/{N_EPOCHS}{Colors.ENDC} | "
+          f"Train Loss: {train_color}{avg_train_loss:.6f}{Colors.ENDC} | "
+          f"Val Loss: {val_color}{avg_val_loss:.6f}{Colors.ENDC} | "
+          f"LR: {Colors.CYAN}{optimizer.param_groups[0]['lr']:.6f}{Colors.ENDC}")
+
+    # Update previous losses
+    prev_train_loss = avg_train_loss
+    prev_val_loss = avg_val_loss
 
     # Learning rate scheduling
     scheduler.step(avg_val_loss)
@@ -465,26 +513,26 @@ for epoch in range(N_EPOCHS):
         best_val_loss = avg_val_loss
         epochs_no_improve = 0
         torch.save(model.state_dict(), 'best_model_temperature.pth')
-        print(f"  → Best model saved (val_loss: {best_val_loss:.6f})")
+        print(f"  {Colors.GREEN}→ Best model saved (val_loss: {best_val_loss:.6f}){Colors.ENDC}")
     else:
         epochs_no_improve += 1
         if epochs_no_improve >= PATIENCE:
-            print(f"\nEarly stopping triggered after {epoch+1} epochs")
+            print(f"\n{Colors.YELLOW}Early stopping triggered after {epoch+1} epochs{Colors.ENDC}")
             break
 
-print("\nTraining complete!")
+print(f"\n{Colors.GREEN}{Colors.BOLD}Training complete!{Colors.ENDC}")
 
 # ============================================================================
 # EVALUATION
 # ============================================================================
 
-print("\n" + "="*80)
-print("EVALUATION")
-print("="*80)
+print("Evaluating...")
 
 # Load best model
 model.load_state_dict(torch.load('best_model_temperature.pth'))
 model.eval()
+
+print(f"\n{Colors.GREEN}{Colors.BOLD}Evaluation complete!{Colors.ENDC}")
 
 # Get predictions on test set
 all_predictions = []
@@ -510,143 +558,218 @@ actuals = y_scaler.inverse_transform(
 ).reshape(actuals_scaled.shape)
 
 # ============================================================================
+# BENCHMARK MODELS
+# ============================================================================
+
+# Compute benchmark predictions (Persistent and SARIMA models)
+persistent_predictions, sarima_predictions = benchmarks.compute_benchmarks(
+    actuals=actuals,
+    x_test=x_test,
+    train_df=train_df,
+    val_df=val_df,
+    test_df=test_df,
+    forecast_days=FORECAST_DAYS,
+    Colors=Colors
+)
+
+# ============================================================================
 # METRICS
 # ============================================================================
 
-print("\nComprehensive Metrics:")
-print("-" * 80)
+print(f"\n{Colors.BOLD}{Colors.HEADER}Comprehensive Metrics:{Colors.ENDC}")
+print(Colors.HEADER + "-" * 80 + Colors.ENDC)
 
-# Overall metrics
-pred_flat = predictions.flatten()
+# Calculate metrics for all three models
 actual_flat = actuals.flatten()
 
-mae_overall = mean_absolute_error(actual_flat, pred_flat)
-rmse_overall = np.sqrt(mean_squared_error(actual_flat, pred_flat))
-r2_overall = r2_score(actual_flat, pred_flat)
+# GRU Model
+pred_flat_gru = predictions.flatten()
+mae_gru = mean_absolute_error(actual_flat, pred_flat_gru)
+rmse_gru = np.sqrt(mean_squared_error(actual_flat, pred_flat_gru))
+r2_gru = r2_score(actual_flat, pred_flat_gru)
 
-print(f"Overall Performance:")
-print(f"  MAE:  {mae_overall:.2f} (0.1°C units = {mae_overall/10:.2f}°C)")
-print(f"  RMSE: {rmse_overall:.2f} (0.1°C units = {rmse_overall/10:.2f}°C)")
-print(f"  R²:   {r2_overall:.4f}")
+# Persistent Model
+pred_flat_persistent = persistent_predictions.flatten()
+mae_persistent = mean_absolute_error(actual_flat, pred_flat_persistent)
+rmse_persistent = np.sqrt(mean_squared_error(actual_flat, pred_flat_persistent))
+r2_persistent = r2_score(actual_flat, pred_flat_persistent)
 
-# Per-day metrics
-print(f"\nPer-Day Forecast Performance:")
+# SARIMA Model
+pred_flat_sarima = sarima_predictions.flatten()
+mae_sarima = mean_absolute_error(actual_flat, pred_flat_sarima)
+rmse_sarima = np.sqrt(mean_squared_error(actual_flat, pred_flat_sarima))
+r2_sarima = r2_score(actual_flat, pred_flat_sarima)
+
+print(f"\n{Colors.BOLD}{'Model':<20} {'MAE (0.1°C)':<15} {'MAE (°C)':<12} {'RMSE (0.1°C)':<16} {'RMSE (°C)':<12} {'R²':<10}{Colors.ENDC}")
+print("-" * 100)
+print(f"{Colors.BLUE}{Colors.BOLD}{'GRU (Ours)':<20}{Colors.ENDC} {Colors.GREEN}{mae_gru:<15.2f} {mae_gru/10:<12.2f} {rmse_gru:<16.2f} {rmse_gru/10:<12.2f}{Colors.ENDC} {Colors.CYAN}{r2_gru:<10.4f}{Colors.ENDC}")
+print(f"{'Persistent':<20} {mae_persistent:<15.2f} {mae_persistent/10:<12.2f} {rmse_persistent:<16.2f} {rmse_persistent/10:<12.2f} {r2_persistent:<10.4f}")
+print(f"{'SARIMA':<20} {mae_sarima:<15.2f} {mae_sarima/10:<12.2f} {rmse_sarima:<16.2f} {rmse_sarima/10:<12.2f} {r2_sarima:<10.4f}")
+
+# Per-day metrics for all models
+print(f"\n{Colors.BOLD}Per-Day Forecast Performance:{Colors.ENDC}")
+print(f"{Colors.BOLD}{'Day':<6} {'Model':<15} {'MAE (°C)':<12} {'RMSE (°C)':<12} {'R²':<10}{Colors.ENDC}")
+print("-" * 60)
 for day in range(FORECAST_DAYS):
-    pred_day = predictions[:, day, 0]
     actual_day = actuals[:, day, 0]
 
-    mae = mean_absolute_error(actual_day, pred_day)
-    rmse = np.sqrt(mean_squared_error(actual_day, pred_day))
-    r2 = r2_score(actual_day, pred_day)
+    # GRU
+    pred_day_gru = predictions[:, day, 0]
+    mae_gru_day = mean_absolute_error(actual_day, pred_day_gru)
+    rmse_gru_day = np.sqrt(mean_squared_error(actual_day, pred_day_gru))
+    r2_gru_day = r2_score(actual_day, pred_day_gru)
 
-    print(f"  Day {day+1}: MAE={mae:.2f} ({mae/10:.2f}°C), "
-          f"RMSE={rmse:.2f} ({rmse/10:.2f}°C), R²={r2:.4f}")
+    # Persistent
+    pred_day_persistent = persistent_predictions[:, day, 0]
+    mae_persistent_day = mean_absolute_error(actual_day, pred_day_persistent)
+    rmse_persistent_day = np.sqrt(mean_squared_error(actual_day, pred_day_persistent))
+    r2_persistent_day = r2_score(actual_day, pred_day_persistent)
+
+    # SARIMA
+    pred_day_sarima = sarima_predictions[:, day, 0]
+    mae_sarima_day = mean_absolute_error(actual_day, pred_day_sarima)
+    rmse_sarima_day = np.sqrt(mean_squared_error(actual_day, pred_day_sarima))
+    r2_sarima_day = r2_score(actual_day, pred_day_sarima)
+
+    print(f"{Colors.BOLD}{day+1:<6}{Colors.ENDC} {Colors.BLUE}{'GRU':<15}{Colors.ENDC} {Colors.GREEN}{mae_gru_day/10:<12.2f} {rmse_gru_day/10:<12.2f}{Colors.ENDC} {Colors.CYAN}{r2_gru_day:<10.4f}{Colors.ENDC}")
+    print(f"{'':6} {'Persistent':<15} {mae_persistent_day/10:<12.2f} {rmse_persistent_day/10:<12.2f} {r2_persistent_day:<10.4f}")
+    print(f"{'':6} {'SARIMA':<15} {mae_sarima_day/10:<12.2f} {rmse_sarima_day/10:<12.2f} {r2_sarima_day:<10.4f}")
+    print()
 
 # ============================================================================
-# YEAR-LONG VISUALIZATION
+# YEAR-LONG VISUALIZATION WITH BENCHMARKS
 # ============================================================================
 
-print("\nGenerating year-long visualization...")
+print(f"\n{Colors.CYAN}Generating year-long visualization with benchmarks...{Colors.ENDC}")
 
 # Use first 365 samples from test set (or all if less)
 n_samples_to_plot = min(365, len(predictions))
 
-fig, axes = plt.subplots(4, 1, figsize=(16, 12))
+fig, axes = plt.subplots(3, 1, figsize=(18, 11))
 
-# Plot 1: Day 1 forecast (most accurate)
+# Plot 1: Day 1 forecast comparison
 day1_actual = actuals[:n_samples_to_plot, 0, 0]
-day1_pred = predictions[:n_samples_to_plot, 0, 0]
-day1_mae = mean_absolute_error(day1_actual, day1_pred)
-day1_mape = np.mean(np.abs((day1_actual - day1_pred) / day1_actual)) * 100
+day1_pred_gru = predictions[:n_samples_to_plot, 0, 0]
+day1_pred_persistent = persistent_predictions[:n_samples_to_plot, 0, 0]
+day1_pred_sarima = sarima_predictions[:n_samples_to_plot, 0, 0]
+
+day1_mae_gru = mean_absolute_error(day1_actual, day1_pred_gru)
+day1_rmse_gru = np.sqrt(mean_squared_error(day1_actual, day1_pred_gru))
+day1_mae_persistent = mean_absolute_error(day1_actual, day1_pred_persistent)
+day1_rmse_persistent = np.sqrt(mean_squared_error(day1_actual, day1_pred_persistent))
+day1_mae_sarima = mean_absolute_error(day1_actual, day1_pred_sarima)
+day1_rmse_sarima = np.sqrt(mean_squared_error(day1_actual, day1_pred_sarima))
 
 axes[0].plot(range(n_samples_to_plot), day1_actual,
-             'b-', label='Actual', linewidth=1.5, alpha=0.7)
-axes[0].plot(range(n_samples_to_plot), day1_pred,
-             'r-', label='Predicted', linewidth=1, alpha=0.7)
-axes[0].set_title('1-Day Ahead Temperature Forecast', fontsize=12, fontweight='bold')
+             'k-', label='Actual', linewidth=1.5, alpha=0.7)
+axes[0].plot(range(n_samples_to_plot), day1_pred_gru,
+             'b-', label='GRU', linewidth=1, alpha=0.7)
+axes[0].plot(range(n_samples_to_plot), day1_pred_persistent,
+             'g--', label='Persistent', linewidth=1, alpha=0.6)
+axes[0].plot(range(n_samples_to_plot), day1_pred_sarima,
+             'r-.', label='SARIMA', linewidth=1, alpha=0.6)
+axes[0].set_title('1-Day Ahead Temperature Forecast - Model Comparison', fontsize=12, fontweight='bold')
 axes[0].set_ylabel('Temperature (0.1°C)', fontsize=10)
 axes[0].legend(loc='upper right')
 axes[0].grid(True, alpha=0.3)
 
 # Add error metrics text box
-textstr = f'MAE: {day1_mae:.2f} ({day1_mae/10:.2f}°C)\nMAPE: {day1_mape:.2f}%'
+textstr = (f'GRU:        MAE={day1_mae_gru/10:.2f}°C, RMSE={day1_rmse_gru/10:.2f}°C\n'
+           f'Persistent: MAE={day1_mae_persistent/10:.2f}°C, RMSE={day1_rmse_persistent/10:.2f}°C\n'
+           f'SARIMA:     MAE={day1_mae_sarima/10:.2f}°C, RMSE={day1_rmse_sarima/10:.2f}°C')
 props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
-axes[0].text(0.02, 0.98, textstr, transform=axes[0].transAxes, fontsize=9,
-             verticalalignment='top', bbox=props)
+axes[0].text(0.02, 0.98, textstr, transform=axes[0].transAxes, fontsize=8,
+             verticalalignment='top', bbox=props, family='monospace')
 
-# Plot 2: Day 3 forecast
+# Plot 2: Day 3 forecast comparison
 day3_actual = actuals[:n_samples_to_plot, 2, 0]
-day3_pred = predictions[:n_samples_to_plot, 2, 0]
-day3_mae = mean_absolute_error(day3_actual, day3_pred)
-day3_mape = np.mean(np.abs((day3_actual - day3_pred) / day3_actual)) * 100
+day3_pred_gru = predictions[:n_samples_to_plot, 2, 0]
+day3_pred_persistent = persistent_predictions[:n_samples_to_plot, 2, 0]
+day3_pred_sarima = sarima_predictions[:n_samples_to_plot, 2, 0]
+
+day3_mae_gru = mean_absolute_error(day3_actual, day3_pred_gru)
+day3_rmse_gru = np.sqrt(mean_squared_error(day3_actual, day3_pred_gru))
+day3_mae_persistent = mean_absolute_error(day3_actual, day3_pred_persistent)
+day3_rmse_persistent = np.sqrt(mean_squared_error(day3_actual, day3_pred_persistent))
+day3_mae_sarima = mean_absolute_error(day3_actual, day3_pred_sarima)
+day3_rmse_sarima = np.sqrt(mean_squared_error(day3_actual, day3_pred_sarima))
 
 axes[1].plot(range(n_samples_to_plot), day3_actual,
-             'b-', label='Actual', linewidth=1.5, alpha=0.7)
-axes[1].plot(range(n_samples_to_plot), day3_pred,
-             'r-', label='Predicted', linewidth=1, alpha=0.7)
-axes[1].set_title('3-Day Ahead Temperature Forecast', fontsize=12, fontweight='bold')
+             'k-', label='Actual', linewidth=1.5, alpha=0.7)
+axes[1].plot(range(n_samples_to_plot), day3_pred_gru,
+             'b-', label='GRU', linewidth=1, alpha=0.7)
+axes[1].plot(range(n_samples_to_plot), day3_pred_persistent,
+             'g--', label='Persistent', linewidth=1, alpha=0.6)
+axes[1].plot(range(n_samples_to_plot), day3_pred_sarima,
+             'r-.', label='SARIMA', linewidth=1, alpha=0.6)
+axes[1].set_title('3-Day Ahead Temperature Forecast - Model Comparison', fontsize=12, fontweight='bold')
 axes[1].set_ylabel('Temperature (0.1°C)', fontsize=10)
 axes[1].legend(loc='upper right')
 axes[1].grid(True, alpha=0.3)
 
 # Add error metrics text box
-textstr = f'MAE: {day3_mae:.2f} ({day3_mae/10:.2f}°C)\nMAPE: {day3_mape:.2f}%'
+textstr = (f'GRU:        MAE={day3_mae_gru/10:.2f}°C, RMSE={day3_rmse_gru/10:.2f}°C\n'
+           f'Persistent: MAE={day3_mae_persistent/10:.2f}°C, RMSE={day3_rmse_persistent/10:.2f}°C\n'
+           f'SARIMA:     MAE={day3_mae_sarima/10:.2f}°C, RMSE={day3_rmse_sarima/10:.2f}°C')
 props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
-axes[1].text(0.02, 0.98, textstr, transform=axes[1].transAxes, fontsize=9,
-             verticalalignment='top', bbox=props)
+axes[1].text(0.02, 0.98, textstr, transform=axes[1].transAxes, fontsize=8,
+             verticalalignment='top', bbox=props, family='monospace')
 
-# Plot 3: Day 7 forecast (most challenging)
-day7_actual = actuals[:n_samples_to_plot, 6, 0]
-day7_pred = predictions[:n_samples_to_plot, 6, 0]
-day7_mae = mean_absolute_error(day7_actual, day7_pred)
-day7_mape = np.mean(np.abs((day7_actual - day7_pred) / day7_actual)) * 100
+# Plot 3: MAE and RMSE comparison across forecast days
+days = np.arange(1, FORECAST_DAYS + 1)
+mae_gru_per_day = []
+rmse_gru_per_day = []
+mae_persistent_per_day = []
+rmse_persistent_per_day = []
+mae_sarima_per_day = []
+rmse_sarima_per_day = []
 
-axes[2].plot(range(n_samples_to_plot), day7_actual,
-             'b-', label='Actual', linewidth=1.5, alpha=0.7)
-axes[2].plot(range(n_samples_to_plot), day7_pred,
-             'r-', label='Predicted', linewidth=1, alpha=0.7)
-axes[2].set_title('7-Day Ahead Temperature Forecast', fontsize=12, fontweight='bold')
-axes[2].set_ylabel('Temperature (0.1°C)', fontsize=10)
-axes[2].legend(loc='upper right')
+for day in range(FORECAST_DAYS):
+    actual_day = actuals[:n_samples_to_plot, day, 0]
+
+    # GRU
+    pred_gru_day = predictions[:n_samples_to_plot, day, 0]
+    mae_gru_per_day.append(mean_absolute_error(actual_day, pred_gru_day) / 10)
+    rmse_gru_per_day.append(np.sqrt(mean_squared_error(actual_day, pred_gru_day)) / 10)
+
+    # Persistent
+    pred_persistent_day = persistent_predictions[:n_samples_to_plot, day, 0]
+    mae_persistent_per_day.append(mean_absolute_error(actual_day, pred_persistent_day) / 10)
+    rmse_persistent_per_day.append(np.sqrt(mean_squared_error(actual_day, pred_persistent_day)) / 10)
+
+    # SARIMA
+    pred_sarima_day = sarima_predictions[:n_samples_to_plot, day, 0]
+    mae_sarima_per_day.append(mean_absolute_error(actual_day, pred_sarima_day) / 10)
+    rmse_sarima_per_day.append(np.sqrt(mean_squared_error(actual_day, pred_sarima_day)) / 10)
+
+ax3_twin = axes[2].twinx()
+
+# Plot MAE on left y-axis
+axes[2].plot(days, mae_gru_per_day, 'b-o', label='GRU MAE', linewidth=2, markersize=6)
+axes[2].plot(days, mae_persistent_per_day, 'g--s', label='Persistent MAE', linewidth=2, markersize=6)
+axes[2].plot(days, mae_sarima_per_day, 'r-.^', label='SARIMA MAE', linewidth=2, markersize=6)
+
+# Plot RMSE on right y-axis
+ax3_twin.plot(days, rmse_gru_per_day, 'b:o', label='GRU RMSE', linewidth=2, markersize=6, alpha=0.6)
+ax3_twin.plot(days, rmse_persistent_per_day, 'g:s', label='Persistent RMSE', linewidth=2, markersize=6, alpha=0.6)
+ax3_twin.plot(days, rmse_sarima_per_day, 'r:^', label='SARIMA RMSE', linewidth=2, markersize=6, alpha=0.6)
+
+axes[2].set_title('Model Performance Across Forecast Horizon', fontsize=12, fontweight='bold')
+axes[2].set_xlabel('Forecast Day', fontsize=10)
+axes[2].set_ylabel('MAE (°C)', fontsize=10)
+ax3_twin.set_ylabel('RMSE (°C)', fontsize=10)
+axes[2].set_xticks(days)
 axes[2].grid(True, alpha=0.3)
 
-# Add error metrics text box
-textstr = f'MAE: {day7_mae:.2f} ({day7_mae/10:.2f}°C)\nMAPE: {day7_mape:.2f}%'
-props = dict(boxstyle='round', facecolor='wheat', alpha=0.8)
-axes[2].text(0.02, 0.98, textstr, transform=axes[2].transAxes, fontsize=9,
-             verticalalignment='top', bbox=props)
+# Combine legends
+lines1, labels1 = axes[2].get_legend_handles_labels()
+lines2, labels2 = ax3_twin.get_legend_handles_labels()
+axes[2].legend(lines1 + lines2, labels1 + labels2, loc='upper left', fontsize=8)
 
-# Plot 4: Residuals (errors) over time
-residuals_day1 = actuals[:n_samples_to_plot, 0, 0] - predictions[:n_samples_to_plot, 0, 0]
-residuals_day7 = actuals[:n_samples_to_plot, 6, 0] - predictions[:n_samples_to_plot, 6, 0]
-
-# Calculate residual statistics
-res1_mean = np.mean(residuals_day1)
-res1_std = np.std(residuals_day1)
-res7_mean = np.mean(residuals_day7)
-res7_std = np.std(residuals_day7)
-
-axes[3].plot(range(n_samples_to_plot), residuals_day1,
-             'g-', label='Day 1 Error', linewidth=0.8, alpha=0.6)
-axes[3].plot(range(n_samples_to_plot), residuals_day7,
-             'orange', label='Day 7 Error', linewidth=0.8, alpha=0.6)
-axes[3].axhline(y=0, color='black', linestyle='--', linewidth=1)
-axes[3].set_title('Prediction Errors Over Time', fontsize=12, fontweight='bold')
-axes[3].set_xlabel('Sample Index (days)', fontsize=10)
-axes[3].set_ylabel('Error (0.1°C)', fontsize=10)
-axes[3].legend(loc='upper right')
-axes[3].grid(True, alpha=0.3)
-
-# Add residual statistics text box
-textstr = f'Day 1: Mean={res1_mean:.2f}, Std={res1_std:.2f}\nDay 7: Mean={res7_mean:.2f}, Std={res7_std:.2f}'
-props = dict(boxstyle='round', facecolor='lightblue', alpha=0.8)
-axes[3].text(0.02, 0.98, textstr, transform=axes[3].transAxes, fontsize=9,
-             verticalalignment='top', bbox=props)
-
-plt.suptitle(f'Temperature Forecast Evaluation ({test_dates[0].strftime("%Y-%m-%d")} to {test_dates[n_samples_to_plot-1].strftime("%Y-%m-%d")})',
+plt.suptitle(f'Temperature Forecast Evaluation with Benchmarks ({test_dates[0].strftime("%Y-%m-%d")} to {test_dates[n_samples_to_plot-1].strftime("%Y-%m-%d")})',
              fontsize=14, fontweight='bold', y=0.995)
 plt.tight_layout()
 plt.savefig('./figures/temperature_forecast_evaluation.png', dpi=800, bbox_inches='tight')
-print(f"  Saved: ./figures/temperature_forecast_evaluation.png")
+print(f"  {Colors.GREEN}Saved: ./figures/temperature_forecast_evaluation.png{Colors.ENDC}")
 
 plt.show()
