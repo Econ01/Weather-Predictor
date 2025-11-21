@@ -296,6 +296,15 @@ class Encoder(nn.Module):
             dropout=dropout if num_layers > 1 else 0
         )
 
+        # Orthogonal initialization for better gradient flow
+        for name, param in self.gru.named_parameters():
+            if 'weight_ih' in name:  # input-to-hidden weights
+                nn.init.xavier_uniform_(param.data)
+            elif 'weight_hh' in name:  # hidden-to-hidden (recurrent) weights
+                nn.init.orthogonal_(param.data)
+            elif 'bias' in name:
+                param.data.fill_(0)
+
     def forward(self, x):
         # x: (batch, seq_len, input_dim)
         # outputs: (batch, seq_len, hidden_dim) - all timesteps
@@ -310,6 +319,11 @@ class Attention(nn.Module):
         super().__init__()
         self.attn = nn.Linear(hidden_dim * 2, hidden_dim)
         self.v = nn.Linear(hidden_dim, 1, bias=False)
+
+        # Xavier initialization for attention layers
+        nn.init.xavier_uniform_(self.attn.weight)
+        nn.init.zeros_(self.attn.bias)
+        nn.init.xavier_uniform_(self.v.weight)
 
     def forward(self, hidden, encoder_outputs):
         # hidden: (batch, hidden_dim)
@@ -351,6 +365,19 @@ class Decoder(nn.Module):
         )
 
         self.fc = nn.Linear(hidden_dim, output_dim)
+
+        # Orthogonal initialization for decoder GRU
+        for name, param in self.gru.named_parameters():
+            if 'weight_ih' in name:  # input-to-hidden weights
+                nn.init.xavier_uniform_(param.data)
+            elif 'weight_hh' in name:  # hidden-to-hidden (recurrent) weights
+                nn.init.orthogonal_(param.data)
+            elif 'bias' in name:
+                param.data.fill_(0)
+
+        # Xavier initialization for output layer
+        nn.init.xavier_uniform_(self.fc.weight)
+        nn.init.zeros_(self.fc.bias)
 
     def forward(self, encoder_outputs, encoder_hidden, forecast_days):
         batch_size = encoder_outputs.size(0)
