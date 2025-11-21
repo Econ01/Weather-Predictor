@@ -153,24 +153,24 @@ The model implements a modern encoder-decoder architecture with the following co
 
 - Python 3.7+
 - PyTorch 1.9+
-- CUDA (optional, for GPU acceleration)
+- CUDA or MPS (optional, for GPU acceleration)
 
 ### Setup
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/Weather-Predictor.git
+git clone https://github.com/Econ01/Weather-Predictor.git
 cd Weather-Predictor
 ```
 
 2. Install required dependencies:
 ```bash
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
 
 Or install packages individually:
 ```bash
-pip install torch numpy pandas scikit-learn matplotlib seaborn statsmodels
+pip3 install torch numpy pandas scikit-learn matplotlib seaborn statsmodels
 ```
 
 3. Download weather data from [ECA&D](https://www.ecad.eu/dailydata/index.php) and place files in the `data/` directory with the following naming convention:
@@ -188,36 +188,6 @@ data/
 ├── SD_SOUID121043.txt
 ├── PP_SOUID121041.txt (excluded from model)
 └── QQ_SOUID210447.txt (excluded from model)
-```
-
-## Project Structure
-
-```
-Weather-Predictor/
-├── data/                           # Raw weather data files (ECA&D format)
-├── figures/                        # Generated visualizations and plots
-│   ├── correlation_heatmap_2d.png
-│   ├── correlation_heatmap_3d.png
-│   ├── variable_histograms.png
-│   ├── time_series_all_variables.png
-│   ├── long_term_trend_tg.png
-│   ├── seasonal_boxplot_tg.png
-│   └── temperature_forecast_evaluation.png
-├── modifiedData/                   # Processed datasets and cached predictions
-│   ├── train_data.csv
-│   ├── val_data.csv
-│   ├── test_data.csv
-│   ├── persistent_predictions.npy
-│   └── sarima_predictions.npy
-├── dataManager.py                  # Data loading, cleaning, and visualization
-├── model_GRU_temperature.py        # Main GRU forecasting model
-├── benchmarks.py                   # Persistent and SARIMA baseline models
-├── train_multiple_seeds.py         # Multi-seed training and robustness testing
-├── compare_models.py               # Model comparison utilities
-├── best_model_temperature.pth      # Saved model weights
-├── requirements.txt                # Python dependencies
-├── .gitignore                      # Git ignore file
-└── README.md                       # Project documentation
 ```
 
 ## Usage
@@ -240,7 +210,7 @@ clean_df, features, targets = load_and_process_data(
 
 Or run directly from command line:
 ```bash
-python dataManager.py
+python3 dataManager.py
 ```
 
 This will generate:
@@ -256,7 +226,7 @@ This will generate:
 Train the main forecasting model with benchmark comparison:
 
 ```bash
-python model_GRU_temperature.py
+python3 model_GRU_temperature.py
 ```
 
 The script will:
@@ -273,7 +243,7 @@ The script will:
 Evaluate model stability across different random seeds:
 
 ```bash
-python train_multiple_seeds.py
+python3 train_multiple_seeds.py
 ```
 
 This trains 10 models with different seeds and provides:
@@ -308,33 +278,39 @@ tracker.plot_comparison(metric='mae_overall')
 
 ## Results
 
-### Model Performance (Test Set: 2023-2025)
+### 1-Day Ahead Forecast Performance (Test Set: 2023-2025)
 
-The GRU model significantly outperforms both baseline models across all forecast horizons:
+The GRU model significantly outperforms both baseline models for 1-day ahead forecasting:
 
 | Model | MAE (°C) | RMSE (°C) | R² |
 |-------|----------|-----------|-----|
-| **GRU (Ours)** | **1.36** | **1.83** | **0.9203** |
-| Persistent | 2.09 | 2.79 | 0.8192 |
-| SARIMA | 2.12 | 2.84 | 0.8126 |
+| **GRU (Ours)** | **1.61** | **2.06** | **0.9011** |
+| Persistent | 1.78 | 2.30 | 0.8768 |
+| SARIMA | 1.72 | 2.22 | 0.8848 |
 
-### Per-Day Forecast Performance
+**Improvement over baselines**: 10.55% reduction in MAE compared to Persistent and 6.83% compared to SARIMA models.
 
-The model maintains strong performance across the 3-day forecast horizon:
+### 3-Day Ahead Forecast Performance
 
-| Forecast Day | MAE (°C) | RMSE (°C) | R² |
-|--------------|----------|-----------|-----|
-| Day 1 | 1.16 | 1.54 | 0.9444 |
-| Day 2 | 1.38 | 1.87 | 0.9194 |
-| Day 3 | 1.54 | 2.08 | 0.8971 |
+The GRU model maintains strong performance even at longer forecast horizons:
+
+| Model | MAE (°C) | RMSE (°C) | R² |
+|-------|----------|-----------|-----|
+| **GRU (Ours)** | **2.58** | **3.26** | **0.7525** |
+| Persistent | 3.04 | 3.86 | 0.6524 |
+| SARIMA | 2.73 | 3.47 | 0.7197 |
+
+**Improvement over baselines**: 17.83% reduction in MAE compared to Persistent and 5.81% compared to SARIMA models.
 
 ### Computational Efficiency
 
-| Model | Training Time | Inference Time |
-|-------|---------------|----------------|
-| GRU | ~120-180 seconds | Fast |
-| Persistent | N/A | <1ms |
-| SARIMA | ~30-50 seconds | Moderate |
+| Model | Training/Computation Time |
+|-------|---------------------------|
+| GRU | 267.5s (4.46 min) to best model |
+| Persistent | 6.7ms |
+| SARIMA | 312.8s (5.21 min) |
+
+When it comes to computational efficiency, our model performs significantly better than SARIMA, however, looses to Persistent model.
 
 ## Visualizations
 
@@ -374,7 +350,7 @@ The GRU model demonstrates superior performance with:
 - Lower MAE and RMSE across all forecast days
 - Higher R² scores indicating better explained variance
 - Smooth predictions that capture seasonal and short-term patterns
-- Consistent performance improvement over baselines (30-35% MAE reduction)
+- Consistent performance improvement over baselines
 
 ## Model Comparison
 
@@ -405,19 +381,6 @@ matplotlib>=3.3.0
 seaborn>=0.11.0
 statsmodels>=0.12.0
 ```
-
-### Hardware
-
-- **CPU**: Any modern multi-core processor
-- **RAM**: 8GB minimum, 16GB recommended
-- **GPU**: Optional (CUDA-compatible GPU for faster training)
-- **Storage**: ~2GB for data and model files
-
-### Operating Systems
-
-- Linux (tested on Ubuntu 20.04+)
-- macOS (tested on macOS 12+)
-- Windows 10/11
 
 ## Data Preprocessing Details
 
@@ -451,17 +414,6 @@ The project ensures reproducible results through:
 3. **Saved Model Weights**: Best model checkpoint saved for inference
 4. **Documented Hyperparameters**: All configurations explicitly specified
 5. **Version Control**: Git tracking of code and configuration changes
-
-## Future Improvements
-
-Potential extensions to enhance the forecasting system:
-
-1. **Ensemble Methods**: Combine multiple models for improved predictions
-2. **Spatial Modeling**: Incorporate data from multiple weather stations
-3. **Extended Horizon**: Forecast beyond 3 days (7-day or 14-day forecasts)
-4. **Probabilistic Forecasting**: Generate prediction intervals and uncertainty estimates
-5. **Transfer Learning**: Apply pre-trained models to new geographic locations
-6. **Real-time Updates**: Implement online learning for continuous model updates
 
 ## License
 
