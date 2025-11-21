@@ -91,7 +91,8 @@ def PlotHeatmap(df, show=True, save=True, plot_3d=True):
         return
 
     # Calculate the correlation matrix
-    corr_matrix = df[['TG', 'TN', 'TX', 'RR', 'PP', 'SS', 'HU', 'FG', 'FX', 'CC', 'SD', 'QQ']].corr()
+    # Note: PP and QQ are excluded due to data quality issues
+    corr_matrix = df[['TG', 'TN', 'TX', 'RR', 'SS', 'HU', 'FG', 'FX', 'CC', 'SD']].corr()
 
     # 2D Plot
     fig_2d, ax_2d = plt.subplots(figsize=(12, 10))

@@ -45,7 +45,6 @@ venv.bak/
 # Processed data output
 clean_data.csv
 modifiedData/
-figures/
 
 # Environment variables
 .env

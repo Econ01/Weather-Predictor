@@ -3,14 +3,14 @@ Weather Temperature Prediction Model - Standard GRU
 Single-task model for 3-day temperature forecasting
 
 Features:
-- 12 input variables (excludes PP and QQ due to data quality issues)
-  - Base features: TG, TN, TX, RR, SS, HU, FG, FX, CC, SD, DAY_SIN, DAY_COS
+- 9 input variables (excludes PP and QQ due to data quality issues)
+  - Base features: TN, TX, RR, SS, HU, FG, FX, CC, SD
 - 3-day forecast horizon
 - Year-based train/val/test split (1957-2017 train / 2018-2022 val / 2023-2025 test)
-- Architecture: 2-layer GRU with 256 hidden units
+- Architecture: 1-layer GRU with 64 hidden units
 - Autoregressive decoder with attention mechanism
 - Gradient clipping for stability
-- Reproducible results with seed=42
+- Reproducible results with seed=8888
 - Comprehensive evaluation metrics and visualization
 - Benchmarked against Persistent and SARIMA models
 """
@@ -60,10 +60,10 @@ print(f"Random seed set to {SEED} for reproducibility")
 # ============================================================================
 
 print("\n[1/9] Loading data...")
-# Load the clean data from dataManager (now includes lagged and rolling features)
+# Load the clean data from dataManager
 clean_df, feature_cols, target_cols = dm.load_and_process_data(run_plots=False, save_plots=False)
 
-# Use features from dataManager (26 variables with lagged and rolling features)
+# Use features from dataManager
 FEATURE_COLS = feature_cols
 
 # Target: TG (Mean Temperature)
@@ -589,14 +589,14 @@ actuals = y_scaler.inverse_transform(
     actuals_scaled.reshape(-1, 1)
 ).reshape(actuals_scaled.shape)
 
-# End timing GRU (use time when best model was found, not end of all epochs)
+# End timing GRU
 gru_time = best_model_time - gru_start_time
 
 # ============================================================================
 # BENCHMARK MODELS
 # ============================================================================
 
-# Compute benchmark predictions (Persistent and SARIMA models)
+# Compute benchmark predictions
 persistent_predictions, sarima_predictions, persistent_time, sarima_time = benchmarks.compute_benchmarks(
     actuals=actuals,
     x_test=x_test,
@@ -645,7 +645,7 @@ print(f"{Colors.BLUE}{Colors.BOLD}{'GRU (Ours)':<20}{Colors.ENDC} {Colors.GREEN}
 print(f"{'Persistent':<20} {mae_persistent:<15.2f} {mae_persistent/10:<12.2f} {rmse_persistent:<16.2f} {rmse_persistent/10:<12.2f} {r2_persistent:<10.4f}")
 print(f"{'SARIMA':<20} {mae_sarima:<15.2f} {mae_sarima/10:<12.2f} {rmse_sarima:<16.2f} {rmse_sarima/10:<12.2f} {r2_sarima:<10.4f}")
 
-# Per-day metrics for all models (full test set)
+# Per-day metrics for all models
 print(f"\n{Colors.BOLD}Per-Day Forecast Performance (2023-2025 Full Test Set):{Colors.ENDC}")
 print(f"{Colors.BOLD}{'Day':<6} {'Model':<15} {'MAE (°C)':<12} {'RMSE (°C)':<12} {'R²':<10}{Colors.ENDC}")
 print("-" * 60)
@@ -685,10 +685,10 @@ print(f"{'SARIMA':<20} {sarima_time:<10.2f}s                {sarima_time/60:<15.
 print()
 
 # ============================================================================
-# FULL TEST SET VISUALIZATION WITH BENCHMARKS (2023-2025)
+# TEST SET VISUALIZATION WITH BENCHMARKS
 # ============================================================================
 
-print(f"\n{Colors.CYAN}Generating visualization with benchmarks (full test set: 2023-2025)...{Colors.ENDC}")
+print(f"\n{Colors.CYAN}Generating visualization with benchmarks...{Colors.ENDC}")
 
 # Use all test samples (2023-2025)
 n_samples_to_plot = len(predictions)
