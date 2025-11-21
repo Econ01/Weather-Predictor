@@ -54,15 +54,23 @@ def ReadAndMerge():
 def CleanData(master_df):
     # Fills and drops NaN values to create a clean and a complete dataset
     print("Cleaning Data (Fill/Drop NaN)...")
-    
+
+    # IMPORTANT: Remove data beyond last real observation date
+    # 2025 data only goes up to Sept 30, 2024 (rest is padding/NaN)
+    LAST_REAL_DATE = pd.Timestamp('2025-09-30')
+
+    # Truncate at last real date
+    master_df = master_df[master_df.index <= LAST_REAL_DATE]
+
     # Fill missing values using the value from the previous day
+    # (only for gaps within real data, not future padding)
     master_df.ffill(inplace=True)
 
     # After ffill, there might be NaNs left at the very start (e.g., 1931-1957)
     # We simply drop those data
     master_df.dropna(inplace=True)
 
-    print("Cleaning Complete")
+    print(f"Cleaning Complete (data up to {master_df.index.max()})")
 
     return master_df
 

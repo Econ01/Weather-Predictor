@@ -6,7 +6,7 @@ Features:
 - 12 input variables (excludes PP and QQ due to data quality issues)
   - Base features: TG, TN, TX, RR, SS, HU, FG, FX, CC, SD, DAY_SIN, DAY_COS
 - 3-day forecast horizon
-- Year-based train/val/test split (1957-2022 / 2023 / 2024-2025)
+- Year-based train/val/test split (1957-2017 train / 2018-2022 val / 2023-2025 test)
 - Architecture: 2-layer GRU with 256 hidden units
 - Autoregressive decoder with attention mechanism
 - Gradient clipping for stability
@@ -44,7 +44,7 @@ class Colors:
     UNDERLINE = '\033[4m'
 
 # Set random seeds for reproducibility
-SEED = 42
+SEED = 8888
 random.seed(SEED)
 np.random.seed(SEED)
 torch.manual_seed(SEED)
@@ -127,7 +127,6 @@ print(f"  y_data shape: {y_data.shape}  # (samples, {FORECAST_DAYS} days, 1 targ
 print("\n[3/9] Splitting data by year...")
 
 # Find split indices based on dates
-# Using 5 years for validation (2018-2022) instead of 1 year (2023)
 train_end_date = pd.Timestamp('2017-12-31')  # Train: 1957-2017 (60 years)
 val_end_date = pd.Timestamp('2022-12-31')    # Val: 2018-2022 (5 years)
 
@@ -610,16 +609,16 @@ persistent_predictions, sarima_predictions, persistent_time, sarima_time = bench
 )
 
 # ============================================================================
-# METRICS (2024 DATA ONLY - FIRST 365 SAMPLES)
+# METRICS (FULL TEST SET 2023-2025)
 # ============================================================================
 
-print(f"\n{Colors.BOLD}{Colors.HEADER}Comprehensive Metrics (2024 Test Year):{Colors.ENDC}")
+print(f"\n{Colors.BOLD}{Colors.HEADER}Comprehensive Metrics (2023-2025 Full Test Set):{Colors.ENDC}")
 print(Colors.HEADER + "-" * 80 + Colors.ENDC)
 
-# Limit to first 365 samples (2024 only) to match visualization
-n_samples_for_metrics = min(365, len(predictions))
+# Use all test samples (2023-2025)
+n_samples_for_metrics = len(predictions)
 
-# Calculate metrics for all three models on 2024 data only
+# Calculate metrics for all three models on full test set
 actual_flat = actuals[:n_samples_for_metrics].flatten()
 
 # GRU Model
@@ -646,8 +645,8 @@ print(f"{Colors.BLUE}{Colors.BOLD}{'GRU (Ours)':<20}{Colors.ENDC} {Colors.GREEN}
 print(f"{'Persistent':<20} {mae_persistent:<15.2f} {mae_persistent/10:<12.2f} {rmse_persistent:<16.2f} {rmse_persistent/10:<12.2f} {r2_persistent:<10.4f}")
 print(f"{'SARIMA':<20} {mae_sarima:<15.2f} {mae_sarima/10:<12.2f} {rmse_sarima:<16.2f} {rmse_sarima/10:<12.2f} {r2_sarima:<10.4f}")
 
-# Per-day metrics for all models (2024 data only)
-print(f"\n{Colors.BOLD}Per-Day Forecast Performance (2024):{Colors.ENDC}")
+# Per-day metrics for all models (full test set)
+print(f"\n{Colors.BOLD}Per-Day Forecast Performance (2023-2025 Full Test Set):{Colors.ENDC}")
 print(f"{Colors.BOLD}{'Day':<6} {'Model':<15} {'MAE (°C)':<12} {'RMSE (°C)':<12} {'R²':<10}{Colors.ENDC}")
 print("-" * 60)
 for day in range(FORECAST_DAYS):
@@ -686,13 +685,13 @@ print(f"{'SARIMA':<20} {sarima_time:<10.2f}s                {sarima_time/60:<15.
 print()
 
 # ============================================================================
-# YEAR-LONG VISUALIZATION WITH BENCHMARKS (2024 DATA ONLY)
+# FULL TEST SET VISUALIZATION WITH BENCHMARKS (2023-2025)
 # ============================================================================
 
-print(f"\n{Colors.CYAN}Generating year-long visualization with benchmarks (2024 data)...{Colors.ENDC}")
+print(f"\n{Colors.CYAN}Generating visualization with benchmarks (full test set: 2023-2025)...{Colors.ENDC}")
 
-# Use first 365 samples from test set (2024 year only)
-n_samples_to_plot = min(365, len(predictions))
+# Use all test samples (2023-2025)
+n_samples_to_plot = len(predictions)
 
 fig, axes = plt.subplots(3, 1, figsize=(18, 11))
 
@@ -830,7 +829,7 @@ lines1, labels1 = axes[2].get_legend_handles_labels()
 lines2, labels2 = ax3_twin.get_legend_handles_labels()
 axes[2].legend(lines1 + lines2, labels1 + labels2, loc='upper left', fontsize=8)
 
-plt.suptitle(f'Temperature Forecast Evaluation with Benchmarks - 2024 Test Year ({test_dates[0].strftime("%Y-%m-%d")} to {test_dates[n_samples_to_plot-1].strftime("%Y-%m-%d")})',
+plt.suptitle(f'Temperature Forecast Evaluation with Benchmarks - Full Test Set ({test_dates[0].strftime("%Y-%m-%d")} to {test_dates[n_samples_to_plot-1].strftime("%Y-%m-%d")})',
              fontsize=14, fontweight='bold', y=0.995)
 plt.tight_layout()
 plt.savefig('./figures/temperature_forecast_evaluation.png', dpi=800, bbox_inches='tight')
